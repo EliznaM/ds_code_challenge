@@ -15,6 +15,8 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.height
 ```{r setup2}
 
 # libraries
+library(kableExtra)
+library(knitr)
 library(tidyverse)
 
 # colours and theme
@@ -74,9 +76,10 @@ dta %>%
            is.na(section), is.na(official_suburb)) %>% 
   count()
 
+# dates
 
-unique(dta$section)
-glimpse(dta)
+
+
 ```
 
 ### Description of the data and preparation steps
@@ -113,6 +116,23 @@ plotdta %>%
   geom_point(aes(percentage_missing, reorder(official_suburb, percentage_missing), size = n_missing))+
   labs(title = "Fig. B: Top 20 Suburbs with missing Directorate")
 
+# missing directorate and dates
+
+unique(dta$month_creation)
+
+dta %>% 
+  group_by(year_creation, month_creation) %>% 
+  count(name = "total_ym") %>% 
+  inner_join(dta %>% 
+               group_by(year_creation, month_creation, is.na(directorate)) %>% 
+               count(name = "n_missing")) %>%
+  ungroup() %>% 
+  rename(missing_directorate = 4) %>% 
+  filter(missing_directorate == TRUE) %>% 
+  mutate(percentage_missing = n_missing/total_ym*100) %>% 
+  kable() %>%
+  kable_styling(full_width = FALSE, position = "left")
+
 ```
 
 Of the entries with Official suburb missing, ...
@@ -134,35 +154,75 @@ plotdta %>%
   geom_point(aes(percentage_missing, reorder(directorate, percentage_missing), size = n_missing))+
   labs(title = "Fig. C: Missing Suburbs per Directorate")
 
+# Exclude if missing directorate
+
+dta <- dta %>% 
+  filter(!is.na(directorate))
+
+
+# Missingness in urban mobility
+unique(dta$directorate)
+
+dta_um <- dta %>% 
+  filter(directorate == "URBAN MOBILITY")
+
+x <- which(names(dta_um) %in% c("code_group", "code", "cause_code_group", "cause_code"))
+
+map(dta_um[x], ~sort(unique(.x))) 
+map(dta_um[x], ~sum(is.na(.x))) 
+
+dta_um %>%
+  select(all_of(x)) %>% 
+  group_by(is.na(.)) %>% 
+  count()
+
+x <- nrow(dta_um)
+
+x1 <- dta_um %>% 
+  group_by(is.na(cause_code_group), is.na(cause_code)) %>% 
+  count(name = "missing_cause") %>% 
+  ungroup() %>% 
+  rename(...1 = 1, ...2 = 2) %>% 
+  filter(...1 == TRUE & ...2 == TRUE) %>% 
+  pull(missing_cause)
+
+tibble(msg = glue::glue("Missing cause for {round(x1/x*100, 2)}% of entries.")) %>% 
+  kable(col.names = NULL) %>%
+  kable_styling(full_width = FALSE, position = "left")
+
 ```
 
 
 ```{r overview}
+x <- nrow(dta)
 
 dta %>% 
-  select(directorate) %>% 
-  arrange(directorate) %>% 
-  distinct()
-
-# missing directorate
-
-dta %>% 
-  filter(!complete.cases(dta)) %>% 
-  group_by(is.na(.)) %>% 
-  count() %>% 
-  print(n = Inf)
+  group_by(directorate) %>% 
+  count(name = "Nr_of_entries") %>% 
+  mutate(Percentage_of_total = round(Nr_of_entries/x*100, 2)) %>% 
+  arrange(desc(Nr_of_entries)) %>% 
+  kable(title = "Number and percentage of entries per Directorate") %>%
+  kable_styling(full_width = FALSE, position = "left")
 
 dta %>% 
-  filter(is.na(directorate)) %>% 
-  select(-contains(c("number", "stamp", "year", "month")), -longitude, -latitude) %>% 
-  distinct() %>% 
-  print(width = Inf)
-  group_by(official_suburb) %>% 
-  count() %>% 
-  arrange(desc(n))
+  group_by(year_creation, month_creation) %>% 
+  count(name = "total_ym") %>% 
+  inner_join(dta %>% 
+               group_by(year_creation, month_creation, directorate) %>% 
+               count(name = "Nr_of_entries")) %>% 
+  ungroup() %>% 
+  mutate(Percentage_of_total = round(Nr_of_entries/total_ym*100, 2)) %>% 
+  arrange(desc(Nr_of_entries)) %>% 
+  ggplot(aes(month_creation, Percentage_of_total, 
+             fill = reorder(directorate, Percentage_of_total)))+
+  geom_col()+
+  facet_wrap(~year_creation, scales = "free_x") # resize left bar?
+
 
 
 ```
+
+
 
 ## "In which 3 suburbs should the Urban Mobility directorate concentrate their infrastructure improvement efforts?"
 
