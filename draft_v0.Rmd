@@ -97,7 +97,7 @@ tmp <- dta %>%
 na_interpret_affected <- UpSetR::upset(tmp)
 
 na_interpret_affected
-grid::grid.text("Fig A",x = 0.65, y=0.95, gp=grid::gpar(fontsize=20))
+grid::grid.text("Fig. A",x = 0.65, y=0.95, gp=grid::gpar(fontsize=20))
 
 plotdta <- dta %>% 
   group_by(official_suburb) %>% 
@@ -186,7 +186,7 @@ x1 <- dta_um %>%
   filter(...1 == TRUE & ...2 == TRUE) %>% 
   pull(missing_cause)
 
-tibble(msg = glue::glue("Missing cause for {round(x1/x*100, 2)}% of entries.")) %>% 
+tibble(msg = glue::glue("Missing cause for {round(x1/x*100, 2)}% of Urban Mobility entries.")) %>% 
   kable(col.names = NULL) %>%
   kable_styling(full_width = FALSE, position = "left")
 
@@ -201,6 +201,7 @@ dta %>%
   count(name = "Nr_of_entries") %>% 
   mutate(Percentage_of_total = round(Nr_of_entries/x*100, 2)) %>% 
   arrange(desc(Nr_of_entries)) %>% 
+  rename(Directorate = directorate) %>% 
   kable(title = "Number and percentage of entries per Directorate") %>%
   kable_styling(full_width = FALSE, position = "left")
 
@@ -226,12 +227,136 @@ dta %>%
 
 ## "In which 3 suburbs should the Urban Mobility directorate concentrate their infrastructure improvement efforts?"
 
+```{r}
 
 
+```
 
 
 
 ## 1. Focusing on the Urban Mobility directorate - "What is the median & 80th percentile time to complete each service request across the City?" (each row represent a service request).
+
+```{r}
+
+# completion time missing
+x <- nrow(dta_um)
+
+dta_um %>% 
+  group_by(is.na(completion_timestamp)) %>% 
+  count(name = "Nr_missing") %>% 
+  ungroup() %>% 
+  rename(Missing_completion_time = 1) %>% 
+  mutate(across(Missing_completion_time, ~ifelse(.x == TRUE, "yes", "no")),
+         Percentage = round(Nr_missing/x*100, 2)) %>% 
+  kable() %>%
+  kable_styling(full_width = FALSE, position = "left")
+
+# breakdown of entries with missing completion times
+
+x <- c("department", "branch", "section", "code_group",
+  "code", "cause_code_group", "cause_code", "official_suburb")
+
+tmp <- map(x, 
+    ~dta_um %>% 
+  filter(is.na(completion_timestamp)) %>% 
+  select(notification_number, all_of(.x)) %>% 
+  mutate(across(-notification_number, ~paste(cur_column(), .x, sep = ":")),
+         value = 1) %>% 
+    rename(key = 2) %>% 
+  pivot_wider(names_from = key, values_from = value)) %>% 
+  purrr::reduce(inner_join) %>% 
+  as.data.frame()
+
+tmp[is.na(tmp)] <- 0
+
+UpSetR::upset(tmp)
+
+# exclude data with no completion time
+
+dta_um <- dta_um %>% 
+  filter(!is.na(completion_timestamp))
+
+```
+
+
+
+```{r}
+
+plotdta <- dta_um %>% 
+  mutate(diff_time_hrs = as.integer(completion_timestamp - creation_timestamp)/60) %>% 
+  select(notification_number, diff_time_hrs, code_group, code, cause_code_group,
+         cause_code, official_suburb)
+
+plot_time_per_var <- function(dataset = plotdta, column = "code_group", hours_cutoff = 96){
+  
+  x <- which(names(dataset) == column)
+  dataset <- dataset %>% 
+    rename(col_select = x) 
+  
+  tmp <- dataset %>% 
+  group_by(col_select) %>% 
+  summarise(n = n(),
+            med_hrs = median(diff_time_hrs),
+            q5 = quantile(diff_time_hrs, probs = 0.05),
+            q80 = quantile(diff_time_hrs, probs = 0.8),
+            q95 = quantile(diff_time_hrs, probs = 0.95)) %>% 
+  ungroup() 
+
+p1 <- tmp %>% 
+  filter(q95 < hours_cutoff) %>% 
+  select(col_select) %>% 
+  inner_join(dataset %>% 
+               select(col_select, diff_time_hrs)) %>% 
+  ggplot(aes(diff_time_hrs, col_select))+
+  ggdist::stat_interval()+
+  labs(y = column)
+
+p2 <- tmp %>% 
+  filter(q5 >= hours_cutoff) %>% 
+  select(col_select) %>% 
+  inner_join(dataset) %>% 
+  mutate(time_weeks = (diff_time_hrs/24)/7) %>% 
+  ggplot(aes(time_weeks, col_select))+
+  ggdist::stat_interval()+
+  labs(y = column)
+
+return(list(hours = p1, weeks = p2))
+
+}
+
+plotlist <- plot_time_per_var(dataset = plotdta, column = "code_group", hours_cutoff = 96)
+
+ggpubr::ggarrange(plotlist = plotlist)
+
+
+plotlist <- plot_time_per_var(dataset = plotdta, column = "code", hours_cutoff = 96)
+
+ggpubr::ggarrange(plotlist = plotlist)
+
+
+plotlist <- plot_time_per_var(dataset = plotdta, column = "cause_code_group", hours_cutoff = 96)
+
+ggpubr::ggarrange(plotlist = plotlist)
+
+
+plotlist <- plot_time_per_var(dataset = plotdta, column = "cause_code", hours_cutoff = 96)
+
+ggpubr::ggarrange(plotlist = plotlist)
+
+plotdta %>% 
+  ggplot(aes(diff_time_hrs, official_suburb))+
+  ggdist::stat_interval()
+
+
+ggpubr::ggarrange(plotlist = plotlist)
+
+
+```
+
+
+
+
+
     
 ## 2. Focusing on the Urban Mobility directorate - "What is the median & 80th percentile time to complete each service request for the 3 suburbs identified in (1)?" (each row represent a service request).
 
