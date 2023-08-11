@@ -228,7 +228,50 @@ dta %>%
 ## "In which 3 suburbs should the Urban Mobility directorate concentrate their infrastructure improvement efforts?"
 
 ```{r}
+# department, branch, section, code_group not helpful
+dta_um %>% 
+  group_by(code, cause_code) %>% 
+  count() %>% 
+  print(n = Inf)
 
+# filter out cause codes "Not Defined" etc, but keep NA
+
+dta_um <- dta_um %>% 
+  filter(!cause_code %in% c("No Cause Found",
+                           "None/Private") &
+           !is.na(official_suburb))
+
+dta_um %>% 
+  group_by(official_suburb) %>% 
+  count() %>% 
+  arrange(desc(n)) %>% 
+  print(n = 20)
+
+# top 3 by month 
+
+plotdta <- dta_um %>% 
+  group_by(year_creation, month_creation, official_suburb) %>% 
+  count() %>% 
+  arrange(year_creation, month_creation, desc(n)) %>% 
+  print(n = 20) %>% 
+  ungroup()
+
+plotdta <- map(unique(plotdta$month_creation),
+           ~plotdta %>% 
+  filter(month_creation == .x) %>% 
+  arrange(desc(n)) %>% 
+  slice(1:10)) %>% 
+    bind_rows()
+
+dta_um %>% 
+  group_by(official_suburb) %>% 
+  count(name = "total_overall") %>% 
+  inner_join(plotdta) %>% 
+  ggplot(aes(n, official_suburb, fill = total_overall))+
+  geom_col()+
+  facet_wrap(~month_creation)
+
+# START HERE
 
 ```
 
