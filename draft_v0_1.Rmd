@@ -1,7 +1,13 @@
 ---
-title: "Untitled"
-output: html_document
-date: "2023-08-11"
+title: "COCT Urban Mobility"
+output: pdf_document
+author:  "E Maasdorp"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+header-includes:
+  - \usepackage{titling}
+  - \pretitle{\begin{center}
+    \includegraphics[width=2in,height=2in]{img/city_emblem.png}\LARGE\\}
+  - \posttitle{\end{center}}
 editor_options: 
   chunk_output_type: console
 ---
@@ -12,7 +18,8 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.height
 
 ## Overview
 
-Describe brief, outline of document. 
+**Note from the author:  This report was compiled to complete the City of Cape Town (COCT) data science challenge.  It is not an official COCT report.**  
+The goal of this analysis was to highlight COCT suburbs that the Urban Mobility Directorate should focus on, for infrastructure improvements, based on service request data for 4 months (December 2020 to March 2021). It also explored intervals between creation and completion of service requests, to identify performance across the city. Finally, a suggested performance tracking dashboard is provided, and insights are provided to aid   
 
 ```{r setup2}
 
@@ -25,10 +32,17 @@ library(tidyverse)
 # colours and theme
   # COCT colours
 
+coct_cols <- c("#C7006E", "#B9CF00","#00A6CD", "#FF9900",  "#000000")
 
+theme_set(theme_light())
 
 # functions
 
+
+# parameters
+
+select_directorate <- "URBAN MOBILITY"
+# specify the Directorate this analysis focuses on
 
 ```
 
@@ -93,8 +107,6 @@ dta <- dta %>%
           time_weeks = as.duration(interv) / dweeks(1)) %>% 
   select(-interv)
   
-
-
 ```
 
 
@@ -104,7 +116,7 @@ dta <- dta %>%
 
 n_cutoff <- 5
 
-tmp <- dta %>% 
+tmp1 <- dta %>% 
   group_by(official_suburb) %>% 
   count(name = "total_suburb") %>% 
   inner_join(dta %>% 
@@ -123,7 +135,7 @@ tmp <- dta %>%
   select(directorate, department, branch, section, official_suburb) %>% 
   mutate(across(everything(), ~as.numeric(is.na(.x)))) %>% 
   as.data.frame()
-head(tmp)
+
 
 mis_dir_nonmis_sub <- tmp %>% 
   group_by(directorate, official_suburb) %>% 
@@ -131,10 +143,9 @@ mis_dir_nonmis_sub <- tmp %>%
   filter(directorate == 1 & official_suburb == 0) %>% 
   pull(n)
 
-
 ```
 
-Missingness of specific data entries can be meaningful, e.g. it can point to operational failures if a specific region has more missing data than another.  Therefore it is important to interrogate patterns of missingness in data. We investigated missingness that would make interpretation hard.  Entries for which any of the Directorate, Department, Branch, Section or Official suburb were missing are visualised (Figure A). Entries with missing Directorate were in general also missing for the other categories. Suburbs for which there were at least `r n_cutoff` entries, and for which Directorate was missing, but Official suburb was not(n = `r mis_dir_nonmis_sub`), accounted for at most `r tmp$percentage_missing` of entries for any suburb and the suburb with the highest percentage of missing entries of this kind, was `r tmp$official_suburb[tmp$percentage_missing == max(tmp$percentage_missing)]`(Figure B). 
+Missingness of specific data entries can be meaningful, e.g. it can point to operational failures if a specific region has more missing data than another.  Therefore it is important to interrogate patterns of missingness in data. We investigated missingness that would make interpretation hard.  Entries for which any of the Directorate, Department, Branch, Section or Official suburb were missing are visualised (Figure A). Entries with missing Directorate were in general also missing for the other categories. Suburbs for which there were at least `r n_cutoff` entries, and for which Directorate was missing, but Official suburb was not(n = `r mis_dir_nonmis_sub`), accounted for at most `r max(tmp1$percentage_missing)` of entries for any suburb and the suburb with the highest percentage of missing entries of this kind, was `r tmp1$official_suburb[tmp1$percentage_missing == max(tmp1$percentage_missing)]`(Figure B). 
 
 ```{r missing2}
 
@@ -143,6 +154,7 @@ na_interpret_affected <- UpSetR::upset(tmp)
 na_interpret_affected
 grid::grid.text("Fig. A",x = 0.65, y=0.95, gp=grid::gpar(fontsize=20))
 
+n_cutoff <- 5
 plotdta <- dta %>% 
   group_by(official_suburb) %>% 
   count(name = "total_suburb") %>% 
@@ -151,7 +163,8 @@ plotdta <- dta %>%
   group_by(official_suburb) %>% 
   count(name = "n_missing")) %>% 
   mutate(percentage_missing = n_missing/total_suburb*100) %>% 
-  arrange(desc(n_missing), desc(percentage_missing)) %>% 
+  filter(n_missing >= n_cutoff) %>% 
+  arrange(desc(percentage_missing)) %>% 
   ungroup() 
 
 plotdta %>% 
@@ -172,8 +185,8 @@ dta %>%
   rename(missing_directorate = 4) %>% 
   filter(missing_directorate == TRUE) %>% 
   mutate(percentage_missing = n_missing/total_ym*100) %>% 
-  kable() %>%
-  kable_styling(full_width = FALSE, position = "left")
+  kable(format = "simple") %>%
+   kable_styling(position = "left")
 
 ```
 
@@ -196,45 +209,59 @@ plotdta %>%
   geom_point(aes(percentage_missing, reorder(directorate, percentage_missing), size = n_missing))+
   labs(title = "Fig. C: Missing Suburbs per Directorate")
 
-# Exclude if missing directorate
+```
 
-dta <- dta %>% 
-  filter(!is.na(directorate))
+Missingness in specific directorate
 
+```{r}
 
-# Missingness in urban mobility
-unique(dta$directorate)
+# Missingness in specific directorate
 
-dta_um <- dta %>% 
-  filter(directorate == "URBAN MOBILITY")
+dta_dir <- dta %>% 
+  filter(directorate == select_directorate)
 
-x <- which(names(dta_um) %in% c("code_group", "code", "cause_code_group", "cause_code"))
+x <- which(names(dta_dir) %in% c("code_group", "code", "cause_code_group", "cause_code"))
 
-map(dta_um[x], ~sort(unique(.x))) 
-map(dta_um[x], ~sum(is.na(.x))) 
+# map(dta_dir[x], ~sort(unique(.x))) 
+# map(dta_dir[x], ~sum(is.na(.x))) 
+# 
+# dta_dir %>%
+#   select(all_of(x)) %>% 
+#   group_by(is.na(.)) %>% 
+#   count()
 
-dta_um %>%
-  select(all_of(x)) %>% 
-  group_by(is.na(.)) %>% 
-  count()
+x <- nrow(dta_dir)
 
-x <- nrow(dta_um)
-
-x1 <- dta_um %>% 
-  group_by(is.na(cause_code_group), is.na(cause_code)) %>% 
+x1 <- dta_dir %>% 
+  group_by(mis_code_grp = is.na(cause_code_group), 
+           mis_cause_code = is.na(cause_code)) %>% 
   count(name = "missing_cause") %>% 
   ungroup() %>% 
-  rename(...1 = 1, ...2 = 2) %>% 
-  filter(...1 == TRUE & ...2 == TRUE) %>% 
+  filter(mis_code_grp == TRUE & mis_cause_code == TRUE) %>% 
   pull(missing_cause)
 
-tibble(msg = glue::glue("Missing cause for {round(x1/x*100, 2)}% of Urban Mobility entries.")) %>% 
-  kable(col.names = NULL) %>%
-  kable_styling(full_width = FALSE, position = "left")
+# tibble(msg = glue::glue("Missing cause for {round(x1/x*100, 2)}% of {select_directorate} entries.")) %>% 
+#   kable(col.names = NULL) %>%
+#   kable_styling(full_width = FALSE, position = "left")
+
 
 ```
 
+Missing completion dates for `r select_directorate`.
 
+```{r}
+
+dta_dir %>% 
+  group_by(official_suburb) %>% 
+  summarise(n = n(),
+            missing_completion_time = 
+              sum(is.na(completion_timestamp))) %>% 
+  filter(missing_completion_time != 0) %>% 
+  kable(format = "simple") %>%
+  kable_styling(position = "left")
+
+
+```
 
 
 
@@ -249,26 +276,33 @@ tibble(msg = glue::glue("Missing cause for {round(x1/x*100, 2)}% of Urban Mobili
 dta <- dta %>% 
   filter(creation_timestamp >= lubridate::as_datetime("2020-01-01 00:00:00 UTC"))
 
+# Exclude if missing directorate
 
-  
+dta <- dta %>% 
+  filter(!is.na(directorate))
+
 ```
 
+## Overview of all Directorates
 
-### Description of the data and preparation steps
-
-
+Contextualise
 
 ```{r overview}
 x <- nrow(dta)
-
-dta %>% 
+ 
+tmp <- dta %>% 
   group_by(directorate) %>% 
   count(name = "Nr_of_entries") %>% 
   mutate(Percentage_of_total = round(Nr_of_entries/x*100, 2)) %>% 
   arrange(desc(Nr_of_entries)) %>% 
-  rename(Directorate = directorate) %>% 
-  kable(title = "Number and percentage of entries per Directorate") %>%
-  kable_styling(full_width = FALSE, position = "left")
+  rename(Directorate = directorate) 
+
+x <- which(tmp$Directorate == select_directorate)
+
+tmp %>% 
+  kable(format = "simple", caption = "Number and percentage of entries per Directorate") %>%
+  kable_styling( position = "left") %>% 
+  row_spec(row = x, bold = TRUE)
 
 dta %>% 
   group_by(year_creation, month_creation) %>% 
@@ -282,76 +316,155 @@ dta %>%
   ggplot(aes(month_creation, Percentage_of_total, 
              fill = reorder(directorate, Percentage_of_total)))+
   geom_col()+
-  facet_wrap(~year_creation, scales = "free_x") # resize left bar?
+  facet_wrap(~year_creation, scales = "free_x")
 
+tmp <- dta %>% 
+  filter(!is.na(official_suburb)) %>% 
+  group_by(directorate) %>% 
+  count(name = "total_directorate") %>% 
+  inner_join(dta %>% 
+               filter(!is.na(official_suburb)) %>% 
+               group_by(directorate, official_suburb) %>% 
+               count(name = "total_suburb")) %>% 
+  mutate(percentage = total_suburb/total_directorate*100) 
 
+map(unique(tmp$directorate),
+    ~tmp %>% 
+      filter(directorate == .x) %>% 
+      arrange(desc(percentage)) %>% 
+      slice(1:3)) %>% 
+  bind_rows() %>% 
+  ggplot(aes(percentage, official_suburb, fill = directorate))+
+  geom_col()+
+  facet_wrap(~directorate, scales = "free_y",
+             nrow = 2)+
+  theme(legend.position = "none")
 
 ```
 
-
+## Focused Analysis: Directorate `r select_directorate`
 
 ## "In which 3 suburbs should the Urban Mobility directorate concentrate their infrastructure improvement efforts?"
 
 ```{r}
-# department, branch, section, code_group not helpful
-dta_um %>% 
-  group_by(code, cause_code) %>% 
-  count() %>% 
-  print(n = Inf)
 
-# filter out cause codes "Not Defined" etc, but keep NA
+# Number of requests over time, including missing suburbs,
+# including missing completion times
 
-dta_um <- dta_um %>% 
-  filter(!cause_code %in% c("No Cause Found",
-                           "None/Private") &
-           !is.na(official_suburb))
+dta_dir %>% 
+  group_by(year_creation, month_creation) %>% 
+  count()
+  
+# % suburb missing
 
-dta_um %>% 
-  group_by(official_suburb) %>% 
-  count() %>% 
-  arrange(desc(n)) %>% 
-  print(n = 20)
+dta_dir %>% 
+  group_by(year_creation, month_creation) %>% 
+  count(name = "total_ym") %>% 
+  inner_join(dta_dir %>% 
+               filter(is.na(official_suburb)) %>% 
+               group_by(year_creation, month_creation) %>% 
+               count(name = "total_missing")) %>% 
+  mutate(percentage_missing_suburb = round(total_missing/total_ym*100, 2)) %>% 
+  kable(format = "simple") %>%
+  kable_styling( position = "left")
+  
+# exclude missing suburb
 
-# top 10 by month 
+dta_dir <- dta_dir %>% 
+  filter(!is.na(official_suburb))
 
-plotdta <- dta_um %>% 
-  group_by(year_creation, month_creation, official_suburb) %>% 
-  count() %>% 
-  arrange(year_creation, month_creation, desc(n)) %>% 
-  print(n = 20) %>% 
-  ungroup()
 
-plotdta <- map(unique(plotdta$month_creation),
-           ~plotdta %>% 
-  filter(month_creation == .x) %>% 
-  arrange(desc(n)) %>% 
-  slice(1:10)) %>% 
-    bind_rows()
+# nr over time, per suburb, missing suburbs excluded now
 
-dta_um %>% 
-  group_by(official_suburb) %>% 
-  count(name = "total_overall") %>% 
-  inner_join(plotdta) %>% 
-  ggplot(aes(n, official_suburb, fill = total_overall))+
+
+tmp <- dta_dir %>% 
+  group_by(year_creation, month_creation) %>% 
+  count(name = "total_ym") %>% 
+  inner_join(dta_dir %>% 
+               group_by(year_creation, 
+                        month_creation, official_suburb) %>% 
+  count(name = "total_suburb")) %>% 
+  mutate(percentage_suburb = total_suburb/total_ym*100) %>% 
+  arrange(year_creation, month_creation,
+          desc(percentage_suburb))
+
+grid <- expand_grid(yr = unique(tmp$year_creation),
+                    mnth = unique(tmp$month_creation))
+
+tmp <- map2(grid$yr, grid$mnth,
+     ~tmp %>% 
+       filter(year_creation == .x & month_creation == .y) %>% 
+       arrange(desc(percentage_suburb)) %>% 
+       slice(1:5)) %>% 
+  bind_rows()
+
+tmp %>% 
+  ggplot(aes(percentage_suburb, reorder(official_suburb, percentage_suburb), fill = month_creation))+
   geom_col()+
-  facet_wrap(~month_creation)
+  facet_wrap(~year_creation + month_creation,
+             scales = "free_y")
 
-# looks like parklands, milnerton, table view, marconi beam
 
-# if look at median across months
-dta_um %>% 
-  group_by(month_creation, official_suburb) %>% 
-  count() %>% 
-  ungroup() %>% 
+# department, branch, section, code_group not helpful
+# dta_dir %>% 
+#   group_by(code, cause_code) %>% 
+#   count() %>% 
+#   print(n = Inf)
+
+# many cause codes NA, use code var only
+
+x <- nrow(dta_dir)
+
+tmp <- dta_dir %>% 
   group_by(official_suburb) %>% 
-  summarise(med = median(n)) %>% 
+  count(name = "total_suburb") %>% 
+  mutate(percentage_suburb = total_suburb/x*100) %>% 
+  arrange(desc(percentage_suburb)) %>% 
   ungroup() %>% 
-  arrange(desc(med))
+  slice(1:20) 
 
-x <- c("PARKLANDS", "MARCONI BEAM", "BRACKENFELL COMMON",
-       "TABLE VIEW", "MILNERTON")
+tmp %>% 
+  kable(format = "simple") %>%
+  kable_styling( position = "left")
 
-dta_um %>% 
+#  
+
+tmp <- dta_dir %>% 
+  group_by(year_creation, month_creation) %>% 
+  count(name = "total_month") %>% 
+  inner_join(dta_dir %>% 
+  group_by(year_creation, month_creation, official_suburb) %>% 
+  count(name = "total_suburb")) %>% 
+  ungroup() %>% 
+    mutate(percentage = total_suburb/total_month*100) %>% 
+    arrange(year_creation, month_creation, desc(percentage)) %>% 
+  select(year_creation, month_creation, official_suburb,
+         percentage) %>% 
+    pivot_wider(names_from = month_creation, values_from = percentage) %>%  # add median across months
+inner_join(dta_dir %>% 
+             group_by(month_creation) %>% 
+             count(name = "total_month") %>% 
+             inner_join(dta_dir %>% 
+  group_by(month_creation, official_suburb) %>% 
+  count()) %>% 
+  ungroup() %>% 
+    mutate(percentage_suburb = n/total_month*100) %>% 
+    group_by(official_suburb) %>% 
+  summarise(med_percentage = median(percentage_suburb)) %>% 
+  ungroup()) %>% 
+  inner_join(tmp %>% 
+               select(official_suburb)) %>% 
+  arrange(desc(med_percentage)) 
+
+tmp %>% 
+  kable(format = "simple") %>%
+  kable_styling( position = "left")
+
+# explore codes for top 5
+
+x <- tmp$official_suburb[1:5]
+
+dta_dir %>% 
   filter(official_suburb %in% x) %>% 
   group_by(official_suburb, code) %>% 
   count() %>% 
@@ -359,7 +472,10 @@ dta_um %>%
   ggplot(aes(n, code, fill = official_suburb))+
   geom_col(position = "dodge")
 
+# top 3
 
+
+select_suburbs <- c("PARKLANDS", "MILNERTON")
 
 ```
 
@@ -368,57 +484,43 @@ dta_um %>%
 ## 1. Focusing on the Urban Mobility directorate - "What is the median & 80th percentile time to complete each service request across the City?" (each row represent a service request).
 
 ```{r}
-# get back no fault found etc.
-
-dta_um <- dta %>% 
-  filter(directorate == "URBAN MOBILITY")
-
-# completion time missing
-x <- nrow(dta_um)
-
-dta_um %>% 
-  group_by(is.na(completion_timestamp)) %>% 
-  count(name = "Nr") %>% 
-  ungroup() %>% 
-  rename(Missing_completion_time = 1) %>% 
-  mutate(across(Missing_completion_time, ~ifelse(.x == TRUE, "yes", "no")),
-         Percentage = round(Nr/x*100, 2)) %>% 
-  kable() %>%
-  kable_styling(full_width = FALSE, position = "left")
-
-# breakdown of entries with missing completion times
-
-x <- c("department", "branch", "section", "code_group",
-  "code", "cause_code_group", "cause_code", "official_suburb")
-
-tmp <- map(x, 
-    ~dta_um %>% 
-  filter(is.na(completion_timestamp)) %>% 
-  select(notification_number, all_of(.x)) %>% 
-  mutate(across(-notification_number, ~paste(cur_column(), .x, sep = ":")),
-         value = 1) %>% 
-    rename(key = 2) %>% 
-  pivot_wider(names_from = key, values_from = value)) %>% 
-  purrr::reduce(inner_join) %>% 
-  as.data.frame()
-
-tmp[is.na(tmp)] <- 0
-
-UpSetR::upset(tmp)
 
 # exclude data with no completion time, create diff var
 
-dta_um <- dta_um %>% 
-  filter(!is.na(completion_timestamp)) %>% 
-   mutate(time_hrs = as.integer(completion_timestamp - creation_timestamp)/60)
+dta_dir <- dta_dir %>% 
+  filter(!is.na(completion_timestamp)) 
 
 ```
 
 
 ```{r}
-#  create table withs medians, q80 for all suburbs and for all of city 
 
-time_tables_make <- function(dataset = dta_um, time_cutoff = NULL){
+# summary(dta_dir$time_hours)
+
+# check for outliers in time_hours
+
+# tmp <- dta_dir %>%
+#   summarise(q25 = quantile(time_hours, probs = 0.25),
+#             q75 = quantile(time_hours, probs = 0.75),
+#             iqr = q75 - q25,
+#             ol_cutoff = 1.5*iqr + q75)
+# 
+# dta_dir %>% 
+#   group_by(time_hours > tmp$ol_cutoff) %>% 
+#   count()
+# 
+# dta_dir %>% 
+#   filter(time_days >= tmp$ol_cutoff) %>% 
+#   ggplot(aes(time_hours, official_suburb, 
+#              colour = official_suburb))+
+#   geom_jitter()+
+#   facet_wrap(~code, scales = "free_y")+
+#   theme(legend.position = "none")
+
+
+#  create table with medians, q80 for all suburbs and for all of city 
+
+time_tables_make <- function(dataset = dta_dir, time_cutoff = NULL){
   
   sub_txt <- "ALL COMBINED"
   code_txt <- "All codes combined"
@@ -427,27 +529,27 @@ time_tables_make <- function(dataset = dta_um, time_cutoff = NULL){
   
   tabledta <- dataset %>% 
   summarise(n = n(),
-            med_time_hrs = median(time_hrs),
-            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+            med_time_hours = median(time_hours),
+            q80_time_hours = quantile(time_hours, probs = 0.8)) %>% 
   mutate(official_suburb = sub_txt) %>% 
   bind_rows(dataset %>% 
   group_by(official_suburb) %>% 
   summarise(n = n(),
-            med_time_hrs = median(time_hrs),
-            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+            med_time_hours = median(time_hours),
+            q80_time_hours = quantile(time_hours, probs = 0.8)) %>% 
     ungroup()) %>% 
   mutate(code = code_txt) %>% 
     bind_rows(dataset %>% 
                 group_by(code) %>% 
                 summarise(n = n(),
-            med_time_hrs = median(time_hrs),
-            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+            med_time_hours = median(time_hours),
+            q80_time_hours = quantile(time_hours, probs = 0.8)) %>% 
                  mutate(official_suburb = sub_txt)) %>% 
   bind_rows(dataset %>% 
   group_by(official_suburb, code) %>% 
   summarise(n = n(),
-            med_time_hrs = median(time_hrs),
-            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+            med_time_hours = median(time_hours),
+            q80_time_hours = quantile(time_hours, probs = 0.8)) %>% 
     ungroup())
 
   return(tabledta)
@@ -455,58 +557,59 @@ time_tables_make <- function(dataset = dta_um, time_cutoff = NULL){
 } else if(!is.null(time_cutoff)){
   
   dataset_x <- dataset %>% 
-    filter(time_hrs < time_cutoff)
+    filter(time_hours < time_cutoff)
   
   tabledta_below <- dataset_x %>% 
   summarise(n = n(),
-            med_time_hrs = median(time_hrs),
-            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+            med_time_hours = median(time_hours),
+            q80_time_hours = quantile(time_hours, probs = 0.8)) %>% 
   mutate(official_suburb = sub_txt) %>% 
   bind_rows(dataset_x %>% 
   group_by(official_suburb) %>% 
   summarise(n = n(),
-            med_time_hrs = median(time_hrs),
-            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+            med_time_hours = median(time_hours),
+            q80_time_hours = quantile(time_hours, probs = 0.8)) %>% 
     ungroup()) %>% 
   mutate(code = code_txt) %>% 
     bind_rows(dataset_x %>% 
                 group_by(code) %>% 
                 summarise(n = n(),
-            med_time_hrs = median(time_hrs),
-            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+            med_time_hours = median(time_hours),
+            q80_time_hours = quantile(time_hours, probs = 0.8)) %>% 
               mutate(official_suburb = sub_txt)) %>% 
   bind_rows(dataset_x %>% 
   group_by(official_suburb, code) %>% 
   summarise(n = n(),
-            med_time_hrs = median(time_hrs),
-            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+            med_time_hours = median(time_hours),
+            q80_time_hours = quantile(time_hours, probs = 0.8)) %>% 
     ungroup())
   
   dataset_x <- dataset %>% 
-    filter(time_hrs >= time_cutoff)
+    filter(time_hours >= time_cutoff)
   
   tabledta_above <- dataset_x %>% 
   summarise(n = n(),
-            med_time_hrs = median(time_hrs),
-            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+            med_time_hours = median(time_hours),
+            q80_time_hours = quantile(time_hours, probs = 0.8)) %>% 
   mutate(official_suburb = sub_txt) %>% 
   bind_rows(dataset_x %>% 
   group_by(official_suburb) %>% 
   summarise(n = n(),
-            med_time_hrs = median(time_hrs),
-            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+            med_time_hours = median(time_hours),
+            q80_time_hours = quantile(time_hours, probs = 0.8)) %>% 
     ungroup()) %>% 
   mutate(code = code_txt) %>% 
     bind_rows(dataset_x %>% 
                 group_by(code) %>% 
                 summarise(n = n(),
-            med_time_hrs = median(time_hrs),
-            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+            med_time_hours = median(time_hours),
+            q80_time_hours = quantile(time_hours, probs = 0.8)) %>% 
               mutate(official_suburb = sub_txt)) %>% 
   bind_rows(dataset_x %>% 
   group_by(official_suburb, code) %>% 
-  summarise(med_time_hrs = median(time_hrs),
-            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+  summarise(n = n(),
+            med_time_hours = median(time_hours),
+            q80_time_hours = quantile(time_hours, probs = 0.8)) %>% 
     ungroup())
   
   return(list(tabledta_below = tabledta_below,
@@ -518,13 +621,13 @@ time_dta_list <- list()
 
 # for all of city, all codes, all completion time lengths
 
-time_dta_list$all_times <- time_tables_make(dataset = dta_um, time_cutoff = NULL)
+time_dta_list$all_times <- time_tables_make(dataset = dta_dir, time_cutoff = NULL)
 
-# for all of city, all codes, split by times < or > 96hrs
-tmp <- time_tables_make(dataset = dta_um, time_cutoff = 96)
+# for all of city, all codes, split by times < or > 24hrs
+tmp <- time_tables_make(dataset = dta_dir, time_cutoff = 24)
 
-time_dta_list$below_96 <- tmp$tabledta_below 
-time_dta_list$above_eq_96 <- tmp$tabledta_above 
+time_dta_list$below_24 <- tmp$tabledta_below 
+time_dta_list$above_eq_24 <- tmp$tabledta_above 
 
 # look at suburbs with n >= 5
 # all codes combined
@@ -537,76 +640,127 @@ time_dta_list$all_times %>%
   filter(official_suburb == sub_txt &
            code == code_txt &
            n >= n_cutoff) %>% 
-  kable(caption = "City-wide, all codes combined") %>%
-  kable_styling(full_width = FALSE, position = "left")
-  
-time_dta_list$all_times %>% 
-  filter(official_suburb != sub_txt &
+  kable(format = "simple", caption = "City-wide, all codes combined") %>%
+  kable_styling( position = "left")
+
+# filter by < 24 hrs
+
+time_dta_list$below_24 %>% 
+  filter(official_suburb == sub_txt &
            code == code_txt &
            n >= n_cutoff) %>% 
-  arrange(desc(med_time_hrs)) %>% 
-  slice(1:5) %>% 
-  kable(caption = "Top 5 suburbs with long median completion times, all codes combined") %>%
-  kable_styling(full_width = FALSE, position = "left")
+  kable(format = "simple", caption = "City-wide, all codes combined, only requests completed in less than 24 hours") %>%
+  kable_styling( position = "left")
+
+# > 24 hrs
+
+time_dta_list$above_eq_24 %>% 
+  filter(official_suburb == sub_txt &
+           code == code_txt &
+           n >= n_cutoff) %>% 
+  kable(format = "simple", caption = "City-wide, all codes combined, only requests completed in 24 hours or more") %>%
+  kable_styling( position = "left")
+
+# split by 24 hours
+
+x <- time_dta_list$below_24 %>% 
+  filter(official_suburb == "ALL COMBINED" &
+           code == "All codes combined") %>% 
+  pull(n)
+
+x <- time_dta_list$all_times %>% 
+  filter(official_suburb == "ALL COMBINED" &
+           code == "All codes combined") %>% 
+  mutate(perc = x/n*100) %>% 
+  pull(perc)
+  
+# x
 
 time_dta_list$all_times %>% 
   filter(official_suburb != sub_txt &
            code == code_txt &
            n >= n_cutoff) %>% 
-  arrange(med_time_hrs) %>% 
+  arrange(desc(med_time_hours)) %>% 
   slice(1:5) %>% 
-  kable(caption = "Top 5 suburbs with short median completion times, all codes combined") %>%
-  kable_styling(full_width = FALSE, position = "left")
+  kable(format = "simple", caption = "Top 5 suburbs with longest median completion times, all codes combined") %>%
+  kable_styling( position = "left")
+
+time_dta_list$all_times %>% 
+  filter(official_suburb != sub_txt &
+           code == code_txt &
+           n >= n_cutoff) %>% 
+  arrange(med_time_hours) %>% 
+  slice(1:5) %>% 
+  kable(format = "simple", caption = "Top 5 suburbs with shortest median completion times, all codes combined") %>%
+  kable_styling(position = "left")
+
 
 
 # split by codes
 # codes with > 5 requests, per suburb
 # show top 5 per code
 
+# get codes for which > 5 requests for some suburbs
+
 n_cutoff <- 5
+
+x <- dta_dir %>% 
+  group_by(code, official_suburb) %>% 
+  count() %>% 
+  arrange(desc(n)) %>% 
+  filter(n >= n_cutoff) %>% 
+  ungroup() %>% 
+  distinct(code) %>% 
+  pull(code)
+
 sub_txt <- "ALL COMBINED"
-code_txt <- "All codes combined"
+time_cutoff <- 24
 
-tmp <- time_dta_list$all_times %>% 
-  filter(official_suburb == sub_txt &
-           code != code_txt &
+p1 <- map(x,
+    ~time_dta_list$below_24 %>% 
+  filter(official_suburb != sub_txt &
+           code == .x &
            n >= n_cutoff) %>% 
-  arrange(desc(med_time_hrs)) 
+  select(official_suburb, code) %>% 
+    distinct() %>% 
+    inner_join(dta_dir %>% 
+                 filter(time_hours < time_cutoff))) %>% 
+  bind_rows() %>% 
+  ggplot(aes(time_hours, official_suburb))+
+    ggdist::stat_interval()+
+  facet_wrap(~code, scales = "free_y", ncol = 1)
 
-code_txt <- tmp$code[2]
 
-plotdta <- tmp %>% 
-  mutate(set = "City-wide") %>% 
-  filter(code == code_txt) %>% 
-  bind_rows(time_dta_list$all_times %>% 
+p2 <- map(x,
+    ~time_dta_list$above_eq_24 %>% 
   filter(official_suburb != sub_txt &
-           code == code_txt &
-           n != 1) %>% 
-  arrange(desc(med_time_hrs)) %>% 
-  slice(1:5) %>% 
-    mutate(set = "top_long_times")) %>% 
-  bind_rows(time_dta_list$all_times %>% 
+           code == .x &
+           n >= n_cutoff) %>% 
+  select(official_suburb, code) %>% 
+    distinct() %>% 
+    inner_join(dta_dir %>% 
+                 filter(time_hours >= time_cutoff))) %>% 
+  bind_rows() %>% 
+  ggplot(aes(time_hours, official_suburb))+
+    ggdist::stat_interval()+
+  facet_wrap(~code, scales = "free_y",
+             ncol = 1)
+
+ggpubr::ggarrange(p1, p2, ncol = 1, nrow = 2,
+                  heights = c(2,1))
+
+tmp <- map(x,
+           ~time_dta_list$all_times %>% 
   filter(official_suburb != sub_txt &
-           code == code_txt,
-         n != 1) %>% 
-  arrange(med_time_hrs) %>% 
-  slice(1:5) %>% 
-    mutate(set = "top_short_times")) %>% 
-  pivot_longer(cols = c(med_time_hrs, q80_time_hrs),
-               names_to = "quantile", values_to = "time_hrs")
+           code == .x &
+           n >= n_cutoff) %>% 
+  arrange(desc(med_time_hours))) 
 
-x <- plotdta %>% 
-  filter(quantile == "med_time_hrs") %>% 
-  select(official_suburb, time_hrs) %>% 
-  arrange(desc(time_hrs)) %>% 
-  pull(official_suburb)
+x <- seq(1,length(tmp), by = 2)
 
-plotdta$official_suburb <- factor(plotdta$official_suburb,
-                                  levels = unique(x))
+kable(tmp[1:2], format = "simple") %>%
+    kable_styling( position = "left")
 
-plotdta %>% 
-  ggplot(aes(time_hrs, official_suburb, colour = set))+
-  geom_point()
 
 
 # per month
@@ -620,106 +774,176 @@ plotdta %>%
 
 
 
-```{r}
-
-plotdta <- dta_um %>% 
-  mutate(diff_time_hrs = as.integer(completion_timestamp - creation_timestamp)/60) %>% 
-  select(notification_number, diff_time_hrs, code_group, code, cause_code_group,
-         cause_code, official_suburb)
-
-
-plot_time_per_var <- function(dataset = plotdta, column = "code_group", hours_cutoff = 96){
-  
-  x <- which(names(dataset) == column)
-  dataset <- dataset %>% 
-    rename(col_select = x) 
-  
-  tmp <- dataset %>% 
-  group_by(col_select) %>% 
-  summarise(n = n(),
-            med_hrs = median(diff_time_hrs),
-            q5 = quantile(diff_time_hrs, probs = 0.05),
-            q80 = quantile(diff_time_hrs, probs = 0.8),
-            q95 = quantile(diff_time_hrs, probs = 0.95)) %>% 
-  ungroup() 
-  
-  dataset %>% 
-    mutate(col_select = "all_combined") %>% 
-    group_by(col_select) %>% 
-  summarise(n = n(),
-            med_hrs = median(diff_time_hrs),
-            q5 = quantile(diff_time_hrs, probs = 0.05),
-            q80 = quantile(diff_time_hrs, probs = 0.8),
-            q95 = quantile(diff_time_hrs, probs = 0.95)) %>% 
-  ungroup() 
-  
-  
-
-p1 <- tmp %>% 
-  filter(q95 < hours_cutoff) %>% 
-  select(col_select) %>% 
-  inner_join(dataset %>% 
-               select(col_select, diff_time_hrs)) %>% 
-  ggplot(aes(diff_time_hrs, col_select))+
-  ggdist::stat_interval()+
-  labs(y = column)
-
-p2 <- tmp %>% 
-  filter(q5 >= hours_cutoff) %>% 
-  select(col_select) %>% 
-  inner_join(dataset) %>% 
-  mutate(time_weeks = (diff_time_hrs/24)/7) %>% 
-  ggplot(aes(time_weeks, col_select))+
-  ggdist::stat_interval()+
-  labs(y = column)
-
-return(list(hours = p1, weeks = p2))
-
-}
-
-plotlist <- plot_time_per_var(dataset = plotdta, column = "code_group", hours_cutoff = 96)
-
-ggpubr::ggarrange(plotlist = plotlist)
-
-
-plotlist <- plot_time_per_var(dataset = plotdta, column = "code", hours_cutoff = 96)
-
-ggpubr::ggarrange(plotlist = plotlist)
-
-
-plotlist <- plot_time_per_var(dataset = plotdta, column = "cause_code_group", hours_cutoff = 96)
-
-ggpubr::ggarrange(plotlist = plotlist)
-
-
-plotlist <- plot_time_per_var(dataset = plotdta, column = "cause_code", hours_cutoff = 96)
-
-ggpubr::ggarrange(plotlist = plotlist)
-
-plotdta %>% 
-  ggplot(aes(diff_time_hrs, official_suburb))+
-  ggdist::stat_interval()
-
-
-ggpubr::ggarrange(plotlist = plotlist)
-
-
-```
-
-
-
-
-
-    
 ## 2. Focusing on the Urban Mobility directorate - "What is the median & 80th percentile time to complete each service request for the 3 suburbs identified in (1)?" (each row represent a service request).
 
 
 
 ## 3. "Is there any significant differences in the median and 80th percentile completion times between the City as a whole and the 3 suburbs identified in(1)?".  Please elaborate on the similarities or differences.
 
+```{r}
+
+
+time_dta_list$all_times %>% 
+  filter(official_suburb %in% c(select_suburbs, "ALL COMBINED")) 
+
+# wilcox test
+map(select_suburbs,
+    ~dta_dir %>% 
+  select(official_suburb, time_hours) %>%
+  mutate(suburb_bin = case_when(official_suburb %in% 
+                                  .x ~ .x,
+                                TRUE ~ "ALL COMBINED")) %>% 
+  summarise(suburb = .x,
+            p_value = wilcox.test(time_hours ~ 
+                                    suburb_bin)$p.value))
+
+# prop.test
+
+prop_test_list <- list()
+
+for(i in 1:length(select_suburbs)){
+x <- time_dta_list$all_times %>% 
+  filter(official_suburb %in% "ALL COMBINED" &
+           code == "All codes combined") %>% 
+  pull(med_time_hours)
+
+tmp <- dta_dir %>% 
+  select(official_suburb, time_hours) %>%
+  mutate(med_compare = case_when(time_hours < x ~ "below_coct_median",
+                                time_hours >= x ~ "above_or_eq_coct_med")) %>% 
+  mutate(suburb_bin = case_when(official_suburb %in% 
+                                  select_suburbs[i] ~ select_suburbs[i],
+                                TRUE ~ "ALL COMBINED")) %>% 
+  group_by(med_compare, suburb_bin) %>% 
+  count() %>% 
+  pivot_wider(names_from = med_compare, values_from = n) %>% 
+  ungroup() %>% 
+  select(-suburb_bin) 
+
+prop_test_list[[i]] <- tibble(suburb = select_suburbs[i],
+       p_value = prop.test(as.matrix(tmp))$p.value)
+
+}
+
+prop_test_list
+
+```
+
 
 ## 3. Provide a visual mock of a dashboard for the purpose of monitoring progress in applying the insights developed in (1) & (2). It should focus the user on performance pain points. Add a note for each visual element, explaining how it helps fulfill this overall function. Please also provide a brief explanation as to how the data provided would be used to realise what is contained in your mock.
 
 
 ## 4. Identify value-adding insights for the management of Urban Mobility, from the dataset provided, in regard to commuter transport within the City.
+ 
+ 
+```{r}
+# traffic congestion over time
+ 
+ unique(dta_dir$code)
+ 
+ code_txt <- "Conjested Traffic at Intersection"
+ 
+tmp <- dta_dir %>% 
+ mutate(across(creation_timestamp, ~as_date(.x))) %>% 
+ filter(code == code_txt) %>% 
+ group_by(code,creation_timestamp) %>% 
+ count() %>% 
+ ungroup() 
+
+x <- sort(tmp$n, decreasing = TRUE)
+x <- x[6]
+
+tmp %>% 
+mutate(day_of_week = wday(creation_timestamp, label=TRUE),
+       label = case_when(n > x ~ 
+                           paste(day_of_week, creation_timestamp),
+                         TRUE ~ "")) %>% 
+   
+ ggplot(aes(creation_timestamp, n, group = code,
+            label = label))+
+ geom_line(colour = "grey70")  +
+ geom_point()+
+   geom_text()
+
+dta_dir %>% 
+ mutate(create_date = as_date(creation_timestamp)) %>% 
+ filter(code == code_txt) %>% 
+ group_by(code,create_date) %>% 
+ count() %>% 
+ ungroup() %>% 
+  filter(n > x) %>% 
+  select(-n) %>% 
+  inner_join(dta_dir) %>% 
+  group_by(create_date,official_suburb) %>% 
+  count() %>% 
+  ungroup() %>% 
+  ggplot(aes(n, reorder(official_suburb,n), fill = as.factor(create_date)))+
+  geom_col()
+
+ 
+ 
+ # which days of the week have more traffic congestion reports
+ 
+ x <- dta_dir %>% 
+   group_by(code) %>% 
+   count() %>% 
+   arrange(desc(n)) %>% 
+   ungroup() %>% 
+   slice(1:5) %>% 
+   pull(code)
+ 
+ dta_dir %>% 
+   filter(code %in% x) %>% 
+ mutate(day_of_week = wday(creation_timestamp, label=TRUE)) %>% 
+ group_by(code, day_of_week) %>% 
+ count() %>%
+   ggplot(aes(day_of_week, n, group = code, colour = code))+
+ geom_point()+
+ geom_line()
+   
+ 
+ dta_dir %>% 
+ mutate(day_of_week = wday(creation_timestamp, label=TRUE)) %>% 
+ filter(code == code_txt) %>% 
+ group_by(day_of_week) %>% 
+ count() %>% 
+ ggplot(aes(day_of_week, n))+
+ geom_col()
+ 
+ # ?stats
+ # odds of having congestion on a wednesday vs other weekdays
+ 
+ 
+ # suburbs and days of week
+ 
+x <-  dta_dir %>% 
+ mutate(day_of_week = wday(creation_timestamp, label=TRUE)) %>% 
+ group_by(day_of_week, official_suburb) %>% 
+ count() %>% 
+   ungroup() %>% 
+   arrange(desc(n)) %>% 
+   slice(1:10) %>% 
+   pull(n)
+ 
+x <- x[length(x)] 
+
+sz <- 3
+ dta_dir %>% 
+ mutate(day_of_week = wday(creation_timestamp, label=TRUE)) %>% 
+ group_by(day_of_week, official_suburb) %>% 
+ count() %>% 
+   mutate(label = case_when(n >= x ~ official_suburb,
+                          TRUE ~ "")) %>% 
+   ggplot(aes(day_of_week, n, label = label))+
+   geom_point(alpha = 0.6)+
+   geom_text(alpha = 0.5, size = sz, check_overlap = TRUE)
+ 
+```
+ 
+ 
+ 
+ 
+ 
+ 
+ 
  
