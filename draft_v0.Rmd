@@ -355,21 +355,33 @@ dta_um <- dta_um %>%
 
 time_tables_make <- function(dataset = dta_um, time_cutoff = NULL){
   
+  sub_txt <- "ALL COMBINED"
+  code_txt <- "All codes combined"
+  
   if(is.null(time_cutoff)){
   
   tabledta <- dataset %>% 
-  summarise(med_time_hrs = median(time_hrs),
+  summarise(n = n(),
+            med_time_hrs = median(time_hrs),
             q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
-  mutate(official_suburb = "ALL COMBINED") %>% 
+  mutate(official_suburb = sub_txt) %>% 
   bind_rows(dataset %>% 
   group_by(official_suburb) %>% 
-  summarise(med_time_hrs = median(time_hrs),
+  summarise(n = n(),
+            med_time_hrs = median(time_hrs),
             q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
     ungroup()) %>% 
-  mutate(code = "all_codes_combined") %>% 
+  mutate(code = code_txt) %>% 
+    bind_rows(dataset %>% 
+                group_by(code) %>% 
+                summarise(n = n(),
+            med_time_hrs = median(time_hrs),
+            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+                 mutate(official_suburb = sub_txt)) %>% 
   bind_rows(dataset %>% 
   group_by(official_suburb, code) %>% 
-  summarise(med_time_hrs = median(time_hrs),
+  summarise(n = n(),
+            med_time_hrs = median(time_hrs),
             q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
     ungroup())
 
@@ -381,18 +393,27 @@ time_tables_make <- function(dataset = dta_um, time_cutoff = NULL){
     filter(time_hrs < time_cutoff)
   
   tabledta_below <- dataset_x %>% 
-  summarise(med_time_hrs = median(time_hrs),
+  summarise(n = n(),
+            med_time_hrs = median(time_hrs),
             q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
-  mutate(official_suburb = "ALL COMBINED") %>% 
+  mutate(official_suburb = sub_txt) %>% 
   bind_rows(dataset_x %>% 
   group_by(official_suburb) %>% 
-  summarise(med_time_hrs = median(time_hrs),
+  summarise(n = n(),
+            med_time_hrs = median(time_hrs),
             q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
     ungroup()) %>% 
-  mutate(code = "all_codes_combined") %>% 
+  mutate(code = code_txt) %>% 
+    bind_rows(dataset_x %>% 
+                group_by(code) %>% 
+                summarise(n = n(),
+            med_time_hrs = median(time_hrs),
+            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+              mutate(official_suburb = sub_txt)) %>% 
   bind_rows(dataset_x %>% 
   group_by(official_suburb, code) %>% 
-  summarise(med_time_hrs = median(time_hrs),
+  summarise(n = n(),
+            med_time_hrs = median(time_hrs),
             q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
     ungroup())
   
@@ -400,15 +421,23 @@ time_tables_make <- function(dataset = dta_um, time_cutoff = NULL){
     filter(time_hrs >= time_cutoff)
   
   tabledta_above <- dataset_x %>% 
-  summarise(med_time_hrs = median(time_hrs),
+  summarise(n = n(),
+            med_time_hrs = median(time_hrs),
             q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
-  mutate(official_suburb = "ALL COMBINED") %>% 
+  mutate(official_suburb = sub_txt) %>% 
   bind_rows(dataset_x %>% 
   group_by(official_suburb) %>% 
-  summarise(med_time_hrs = median(time_hrs),
+  summarise(n = n(),
+            med_time_hrs = median(time_hrs),
             q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
     ungroup()) %>% 
-  mutate(code = "all_codes_combined") %>% 
+  mutate(code = code_txt) %>% 
+    bind_rows(dataset_x %>% 
+                group_by(code) %>% 
+                summarise(n = n(),
+            med_time_hrs = median(time_hrs),
+            q80_time_hrs = quantile(time_hrs, probs = 0.8)) %>% 
+              mutate(official_suburb = sub_txt)) %>% 
   bind_rows(dataset_x %>% 
   group_by(official_suburb, code) %>% 
   summarise(med_time_hrs = median(time_hrs),
@@ -432,13 +461,97 @@ tmp <- time_tables_make(dataset = dta_um, time_cutoff = 96)
 time_dta_list$below_96 <- tmp$tabledta_below 
 time_dta_list$above_eq_96 <- tmp$tabledta_above 
 
+# look at suburbs with n >= 5
+# all codes combined
+
+n_cutoff <- 5
+sub_txt <- "ALL COMBINED"
+code_txt <- "All codes combined"
+
+time_dta_list$all_times %>% 
+  filter(official_suburb == sub_txt &
+           code == code_txt &
+           n >= n_cutoff) %>% 
+  kable(caption = "City-wide, all codes combined") %>%
+  kable_styling(full_width = FALSE, position = "left")
+  
+time_dta_list$all_times %>% 
+  filter(official_suburb != sub_txt &
+           code == code_txt &
+           n >= n_cutoff) %>% 
+  arrange(desc(med_time_hrs)) %>% 
+  slice(1:5) %>% 
+  kable(caption = "Top 5 suburbs with long median completion times, all codes combined") %>%
+  kable_styling(full_width = FALSE, position = "left")
+
+time_dta_list$all_times %>% 
+  filter(official_suburb != sub_txt &
+           code == code_txt &
+           n >= n_cutoff) %>% 
+  arrange(med_time_hrs) %>% 
+  slice(1:5) %>% 
+  kable(caption = "Top 5 suburbs with short median completion times, all codes combined") %>%
+  kable_styling(full_width = FALSE, position = "left")
+
+
+# split by codes
+# codes with > 5 requests, per suburb
+# show top 5 per code
+
+n_cutoff <- 5
+sub_txt <- "ALL COMBINED"
+code_txt <- "All codes combined"
+
+tmp <- time_dta_list$all_times %>% 
+  filter(official_suburb == sub_txt &
+           code != code_txt &
+           n >= n_cutoff) %>% 
+  arrange(desc(med_time_hrs)) 
+
+code_txt <- tmp$code[2]
+
+plotdta <- tmp %>% 
+  mutate(set = "City-wide") %>% 
+  filter(code == code_txt) %>% 
+  bind_rows(time_dta_list$all_times %>% 
+  filter(official_suburb != sub_txt &
+           code == code_txt &
+           n != 1) %>% 
+  arrange(desc(med_time_hrs)) %>% 
+  slice(1:5) %>% 
+    mutate(set = "top_long_times")) %>% 
+  bind_rows(time_dta_list$all_times %>% 
+  filter(official_suburb != sub_txt &
+           code == code_txt,
+         n != 1) %>% 
+  arrange(med_time_hrs) %>% 
+  slice(1:5) %>% 
+    mutate(set = "top_short_times")) %>% 
+  pivot_longer(cols = c(med_time_hrs, q80_time_hrs),
+               names_to = "quantile", values_to = "time_hrs")
+
+x <- plotdta %>% 
+  filter(quantile == "med_time_hrs") %>% 
+  select(official_suburb, time_hrs) %>% 
+  arrange(desc(time_hrs)) %>% 
+  pull(official_suburb)
+
+plotdta$official_suburb <- factor(plotdta$official_suburb,
+                                  levels = unique(x))
+
+plotdta %>% 
+  ggplot(aes(time_hrs, official_suburb, colour = set))+
+  geom_point()
+
+
+# per month
+
+
 
 
 # weekends, public holidays?
 
 ```
-
-
 
 
 
@@ -449,7 +562,7 @@ plotdta <- dta_um %>%
   select(notification_number, diff_time_hrs, code_group, code, cause_code_group,
          cause_code, official_suburb)
 
-# START HERE
+
 plot_time_per_var <- function(dataset = plotdta, column = "code_group", hours_cutoff = 96){
   
   x <- which(names(dataset) == column)
