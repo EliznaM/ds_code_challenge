@@ -123,7 +123,11 @@ dta <- dta %>%
           time_days = as.duration(interv) / ddays(1),
           time_weeks = as.duration(interv) / dweeks(1)) %>% 
   select(-interv)
-  
+
+# fix typo in code
+
+sort(unique(dta$code[dta$directorate == "URBAN MOBILITY"]))
+dta$code <- gsub("Conjested", "Congested", dta$code) 
 ```
 
 
@@ -1094,16 +1098,190 @@ prop_test_list %>%
 ## 3. Provide a visual mock of a dashboard for the purpose of monitoring progress in applying the insights developed in (1) & (2). It should focus the user on performance pain points. Add a note for each visual element, explaining how it helps fulfill this overall function. Please also provide a brief explanation as to how the data provided would be used to realise what is contained in your mock.
 
 
-## 4. Identify value-adding insights for the management of Urban Mobility, from the dataset provided, in regard to commuter transport within the City.
+```{r}
+
+theme_tmp <- theme_doc+
+  theme(text = element_text(size = 9))
+theme_set(theme_tmp)
+# top suburbs
+
+x <- nrow(dta_dir)
+
+tmp <- dta_dir %>% 
+  group_by(official_suburb) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(percentage = (n/x*100)) %>% 
+  arrange(desc(n)) %>% 
+  slice(1:5) 
+
+p1 <- tmp %>% 
+  ggplot(aes(percentage, reorder(official_suburb, percentage),
+             fill = official_suburb))+
+  geom_col()+
+  scale_fill_manual(values = coct_cols)+
+  labs(title = "Top 5 Suburbs Contributing Requests")+
+  theme(legend.title = element_blank(),
+        axis.title.y = element_blank())
+
+top5 <- tmp$official_suburb
+
+p2 <- dta_dir %>% 
+  group_by(month_creation) %>% 
+  count(name = "total_month") %>% 
+  inner_join(dta_dir %>% 
+  group_by(month_creation, official_suburb) %>% 
+  count()) %>% 
+  ungroup() %>% 
+  filter(official_suburb %in% top5) %>% 
+  mutate(percentage = (n/total_month*100)) %>% 
+  arrange(desc(percentage)) %>% 
+  ggplot(aes(month_creation, percentage, colour = official_suburb,
+             group = official_suburb))+
+  geom_point(size = 3)+
+  geom_line(linewidth = 2)+
+  theme(legend.title = element_blank(),
+        axis.title.y = element_blank())+
+  scale_colour_manual(values = coct_cols)+
+  labs(title = "Top 5 Suburbs Contributing Requests, Per Month")
+
+
+# top codes for top 5 suburbs
+
+n_cutoff <- 5
+
+tmp <- dta_dir %>% 
+  filter(official_suburb %in% top5) %>% 
+  group_by(month_creation, official_suburb) %>% 
+  count(name = "total_month") %>% 
+  ungroup() %>% 
+  inner_join(dta_dir %>% 
+  filter(official_suburb %in% top5) %>% 
+  group_by(month_creation, official_suburb, code) %>% 
+  count() %>% 
+  ungroup() %>% 
+  filter(n >= n_cutoff)) %>% 
+  mutate(percentage = n/total_month*100)
+  
+p3 <- tmp %>% 
+  ggplot(aes(percentage, reorder(code, percentage),
+             fill = month_creation))+
+  geom_col(position = "dodge")+
+  facet_wrap(~official_suburb, scales = "free_y",
+             ncol = 1)+
+  scale_fill_manual(values = coct_cols)+
+  theme(legend.title = element_blank(),
+        axis.title.y = element_blank())
+
+A <- ggpubr::ggarrange(p1, p2, common.legend = TRUE, ncol =1)
+A <- ggpubr::ggarrange(A, p3, nrow = 1)
+
+
+# completion times 
+
+  # flag things from past three months with missing completion times
+  # create dataset as if it is 1 April 2020
+
+dta_apr <- dta_dir %>% 
+  mutate(date_complete = as_date(completion_timestamp),
+         date_create = as_date(creation_timestamp),
+        across(c(completion_timestamp, date_complete, month_completion),~ifelse(month_completion %in% c("jan", "feb", "mar"),
+                                .x, NA)),
+        date_today = as_date("2020-04-01"))
+                    
+tmp <- dta_apr  %>% 
+  filter(is.na(completion_timestamp)) %>% 
+  mutate(interv = date_create %--% date_today,
+          time_elapsed_weeks = as.duration(interv) / dweeks(1)) %>% 
+  select(-interv) %>% 
+  filter(time_elapsed_weeks > 4)
+  
+p1 <- tmp %>% 
+  group_by(code) %>% 
+  count() %>% 
+  ungroup() %>% 
+  arrange(desc(n)) %>% 
+  slice(1:5) %>% 
+  ggplot(aes(n, reorder(code, n)))+
+  geom_col(fill = coct_cols[2])+
+  theme(axis.title.y  = element_blank())+
+  labs(title = "Top 5 Codes Pending Requests for 4 Weeks or More")
+
+p2 <- tmp %>% 
+  group_by(official_suburb) %>% 
+  count() %>% 
+  ungroup() %>% 
+  arrange(desc(n)) %>% 
+  slice(1:5) %>% 
+  ggplot(aes(n, reorder(official_suburb, n)))+
+  geom_col(fill = coct_cols[1])+
+  theme(axis.title.y  = element_blank())+
+  labs(title = "Top 5 Suburbs Pending Requests for 4 Weeks or More")
+
+B <- ggpubr::ggarrange(p1, p2, ncol = 1)
+
+# city-wide completion time med, q80
+
+
+sub_txt <- "ALL COMBINED"
+code_txt <- "All codes combined"
+n_cut_off <- 5
+
+p1 <- time_dta_list$all_times %>% 
+  filter(n >= n_cutoff & official_suburb == sub_txt &
+           code != code_txt) %>% 
+  pivot_longer(c(med_time_hours, q80_time_hours),
+               names_to = "quantile", 
+               values_to = "hours") %>% 
+  ggplot(aes(log10(hours), reorder(code,hours), group = code, colour = quantile))+
+   geom_line(colour = "grey70")+
+  geom_point(size = 3)+
+   scale_colour_manual(values = coct_cols)+
+  theme(axis.title.y = element_blank())
+
+p2 <- time_dta_list$all_times %>% 
+  filter(n >= n_cutoff & official_suburb != sub_txt &
+           code != code_txt) %>% 
+  arrange(desc(med_time_hours)) %>% 
+  slice(1:5) %>% 
+  pivot_longer(c(med_time_hours, q80_time_hours),
+               names_to = "quantile", 
+               values_to = "hours") %>% 
+  ggplot(aes(log10(hours), reorder(code,hours), group = code, colour = quantile))+
+   geom_line(colour = "grey70")+
+  geom_point(size = 3)+
+   scale_colour_manual(values = coct_cols)+
+  theme(axis.title.y = element_blank())+
+  facet_wrap(~reorder(official_suburb,hours), scale = "free_y", ncol = 1)
+
+C <- ggpubr::ggarrange(p1, p2, nrow = 1)
+
+D <- ggpubr::ggarrange(A,  B, labels = c("A", "B"))
+E <- ggpubr::ggarrange(C, labels = "C")
+
+ggpubr::ggarrange(D, E, ncol = 1)
+
+theme_set(theme_doc)
+
+knit_exit()
+
+```
+
+
+
+
+
+
+
 
 ## Other relevant insights 
+
+Traffic congestion can be explored by plotting request numbers associated with this code, over time, and looking for patterns in day of week, or highlighting particularly bad days (Fig. x). Several days in February 2020 stand out. 
  
 ```{r}
 # traffic congestion over time
  
- unique(dta_dir$code)
- 
- code_txt <- "Conjested Traffic at Intersection"
+ code_txt <- "Congested Traffic at Intersection"
  
 tmp <- dta_dir %>% 
  mutate(across(creation_timestamp, ~as_date(.x))) %>% 
@@ -1113,20 +1291,29 @@ tmp <- dta_dir %>%
  ungroup() 
 
 x <- sort(tmp$n, decreasing = TRUE)
-x <- x[6]
+x <- x[6] # for top 5
 
 tmp %>% 
 mutate(day_of_week = wday(creation_timestamp, label=TRUE),
        label = case_when(n > x ~ 
                            paste(day_of_week, creation_timestamp),
-                         TRUE ~ "")) %>% 
-   
+                         TRUE ~ ""),
+       weekend = case_when(day_of_week %in% c("Sat", "Sun") ~ "weekend",
+                           TRUE ~ "week")) %>% 
+  
  ggplot(aes(creation_timestamp, n, group = code,
-            label = label))+
+            label = label, colour = weekend))+
  geom_line(colour = "grey70")  +
- geom_point()+
-   geom_text()
+ geom_point(size = 3)+
+   geom_text()+
+  scale_color_manual(values = coct_cols)+
+  theme(legend.title = element_blank())
 
+```
+
+The suburbs contributing to the top 5 days with highest number of traffic congestion requests, show that a small number of suburbs make the largest contribution.
+
+```{r fig.height = 16}
 dta_dir %>% 
  mutate(create_date = as_date(creation_timestamp)) %>% 
  filter(code == code_txt) %>% 
@@ -1140,10 +1327,29 @@ dta_dir %>%
   count() %>% 
   ungroup() %>% 
   ggplot(aes(n, reorder(official_suburb,n), fill = as.factor(create_date)))+
-  geom_col()
+  geom_col()+
+  scale_fill_manual(values = coct_cols)+
+  labs(fill = "Top 5 Dates")+
+  theme(axis.title.y = element_blank())
 
- 
- 
+
+# get outlier date
+tmp <- dta_dir %>% 
+  mutate(date = as_date(creation_timestamp)) %>% 
+  filter(code == code_txt & official_suburb == "PARKLANDS") %>% 
+  group_by(date) %>% 
+  count() %>% 
+  ungroup() %>% 
+  arrange(desc(n)) %>% 
+  slice(1) %>% 
+  pull(date)
+
+```
+
+A clear pattern for number of requests and day of the week, is seen for congested traffic requests, and to some degree for Traffic lights out. Wednesdays contributed the most traffic congestion requests, but when removing the outlier for Parklands on `r tmp`,there seems to be a mid-week plateau, tapering down to Sunday and Saturday on either side, as expected. 
+
+```{r}
+
  # which days of the week have more traffic congestion reports
  
  x <- dta_dir %>% 
@@ -1153,29 +1359,50 @@ dta_dir %>%
    ungroup() %>% 
    slice(1:5) %>% 
    pull(code)
+
+
  
- dta_dir %>% 
-   filter(code %in% x) %>% 
+p1 <- dta_dir %>% 
+  mutate(date = as_date(creation_timestamp)) %>% 
+   filter(code %in% x ) %>% 
  mutate(day_of_week = wday(creation_timestamp, label=TRUE)) %>% 
  group_by(code, day_of_week) %>% 
  count() %>%
    ggplot(aes(day_of_week, n, group = code, colour = code))+
- geom_point()+
- geom_line()
+ geom_point(size = 3)+
+ geom_line()+
+   scale_colour_manual(values = coct_cols)+
+  labs(title = "All values")
    
- 
- dta_dir %>% 
+p2 <- dta_dir %>% 
+  mutate(date = as_date(creation_timestamp)) %>% 
+  filter(!(date == tmp & code == code_txt)) %>% 
+   filter(code %in% x ) %>% 
  mutate(day_of_week = wday(creation_timestamp, label=TRUE)) %>% 
- filter(code == code_txt) %>% 
- group_by(day_of_week) %>% 
- count() %>% 
- ggplot(aes(day_of_week, n))+
- geom_col()
+ group_by(code, day_of_week) %>% 
+ count() %>%
+   ggplot(aes(day_of_week, n, group = code, colour = code))+
+ geom_point(size = 3)+
+ geom_line()+
+   scale_colour_manual(values = coct_cols)+
+  labs(title = "Parklands outlier removed")
+
+ggpubr::ggarrange(p1, p2, common.legend = TRUE)
+
+ # 
+ # dta_dir %>% 
+ # mutate(day_of_week = wday(creation_timestamp, label=TRUE)) %>% 
+ # filter(code == code_txt) %>% 
+ # group_by(day_of_week) %>% 
+ # count() %>% 
+ # ggplot(aes(day_of_week, n))+
+ # geom_col()
  
- # ?stats
- # odds of having congestion on a wednesday vs other weekdays
- 
- 
+```
+
+The pattern is less pronounced when looking at individual suburbs, but the three suburbs identified previously for intervention, feature prominently in the highest numbers of requests(Fig x).
+
+```{r}
  # suburbs and days of week
  
 x <-  dta_dir %>% 
@@ -1195,13 +1422,20 @@ sz <- 3
  group_by(day_of_week, official_suburb) %>% 
  count() %>% 
    mutate(label = case_when(n >= x ~ official_suburb,
-                          TRUE ~ "")) %>% 
+                          TRUE ~ "")) %>%
    ggplot(aes(day_of_week, n, label = label))+
-   geom_point(alpha = 0.6)+
-   geom_text(alpha = 0.5, size = sz, check_overlap = TRUE)
+   geom_jitter(alpha = 0.6, width = 0.1)+
+   ggrepel::geom_text_repel(alpha = 0.5, size = sz,
+                            max.overlaps = 50,
+                            force = 0.1)
  
 ```
  
+## Conclusion
+
+
+
+
 ## Appendix
 
 
