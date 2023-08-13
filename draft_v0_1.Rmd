@@ -19,7 +19,7 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.height
 ## Overview
 
 **Note from the author:  This report was compiled to complete the City of Cape Town (COCT) data science challenge.  It is not an official COCT report.**  
-The goal of this analysis was to highlight COCT suburbs that the Urban Mobility Directorate should focus on, for infrastructure improvements, based on service request data for 4 months (December 2020 to March 2021). It also explored intervals between creation and completion of service requests, to identify performance across the city. Finally, a suggested performance tracking dashboard is provided, and insights are provided to aid   
+The goal of this analysis is to highlight COCT suburbs that the Urban Mobility Directorate should focus on, for infrastructure improvements, based on service request data for 4 months (December 2019 to March 2020). It also explored intervals between creation and completion of service requests, to assess performance across the city. In future, the identification of performance pain points can be aided by a performance tracking dashboard, for which a visual mock-up is provided.  Finally, some insights relevant to commuter transport, gained from the current data, are provided.    
 
 ```{r setup2}
 
@@ -48,9 +48,12 @@ select_directorate <- "URBAN MOBILITY"
 
 ## Methods
 
-Describe data prep, code generalisable, tech details - missingness, exclusion decisions, choice of vars (e.g. code var).
+The ```sr_hex_truncated.csv``` dataset was provided for this analysis. It originates from service requests across COCT spanning December 2019 to March 2020.  The analysis was performed in the Statistical Programming Language R, using a RMarkdown file to produce this document.  The code is available in a Github repository () and this analysis should be fully reproducible.  The R and package versions used are listed at the end of this document in an appendix.  
+The dataset was explored and new variables created from existing ones, as necessary. Tables and plots were used to communicate useful summaries. Medians, quantiles and non-parametric tests for differences in service request completion times were used because of skew data distribution. 
+Only 1 day of 2019 is represented in the data (31 December) and it was excluded from the analysis.  Missing data entries were explored and details focusing on missingness can be found in the appendix at the end of this document.    Service request data that are hard to interpret because of missing entries in specific variables, were excluded:  rows with missing Directorate for all analyses, rows with missing Official Suburb, for analyses specifically comparing suburbs, and rows with missing service request completion dates for completion time analyses.
+The data contains 4 service request code variables that provide descriptions of the type of request.  Due to severe missingness in two of these, and the differences in granularity in the remaining two, only the ```code``` variable was used to compare and provide insight into the types and frequency of requests.  
 
-```{r data_prep, results='hide'}
+```{r data_check, results='hide'}
 # output from this code chunk should not print in report
 
 # read file from local
@@ -110,13 +113,15 @@ dta <- dta %>%
 ```
 
 
-#### Missingness
-
 ```{r missing1}
+
+#### Missingness - include these results in appendix
+# save in appendix list
+appx_list <- list()
 
 n_cutoff <- 5
 
-tmp1 <- dta %>% 
+appx_list$miss_dir <- dta %>% 
   group_by(official_suburb) %>% 
   count(name = "total_suburb") %>% 
   inner_join(dta %>% 
@@ -131,13 +136,13 @@ tmp1 <- dta %>%
 # max(tmp$percentage_missing)
 # tmp$official_suburb[tmp$percentage_missing == max(tmp$percentage_missing)]
 
-tmp <- dta %>% 
+appx_list$upset_data <- dta %>% 
   select(directorate, department, branch, section, official_suburb) %>% 
   mutate(across(everything(), ~as.numeric(is.na(.x)))) %>% 
   as.data.frame()
 
 
-mis_dir_nonmis_sub <- tmp %>% 
+appx_list$mis_dir_nonmis_sub <- appx_list$upset_data %>% 
   group_by(directorate, official_suburb) %>% 
   count() %>% 
   filter(directorate == 1 & official_suburb == 0) %>% 
@@ -145,14 +150,10 @@ mis_dir_nonmis_sub <- tmp %>%
 
 ```
 
-Missingness of specific data entries can be meaningful, e.g. it can point to operational failures if a specific region has more missing data than another.  Therefore it is important to interrogate patterns of missingness in data. We investigated missingness that would make interpretation hard.  Entries for which any of the Directorate, Department, Branch, Section or Official suburb were missing are visualised (Figure A). Entries with missing Directorate were in general also missing for the other categories. Suburbs for which there were at least `r n_cutoff` entries, and for which Directorate was missing, but Official suburb was not(n = `r mis_dir_nonmis_sub`), accounted for at most `r max(tmp1$percentage_missing)` of entries for any suburb and the suburb with the highest percentage of missing entries of this kind, was `r tmp1$official_suburb[tmp1$percentage_missing == max(tmp1$percentage_missing)]`(Figure B). 
 
 ```{r missing2}
 
-na_interpret_affected <- UpSetR::upset(tmp)
-
-na_interpret_affected
-grid::grid.text("Fig. A",x = 0.65, y=0.95, gp=grid::gpar(fontsize=20))
+appx_list$na_interpret_affected <- UpSetR::upset(appx_list$upset_data)
 
 n_cutoff <- 5
 plotdta <- dta %>% 
@@ -167,7 +168,7 @@ plotdta <- dta %>%
   arrange(desc(percentage_missing)) %>% 
   ungroup() 
 
-plotdta %>% 
+appx_list$plot_mis_dir_nonmis_sub <- plotdta %>% 
   slice(1:20) %>% 
   ggplot()+
   geom_point(aes(percentage_missing, reorder(official_suburb, percentage_missing), size = n_missing))+
@@ -175,7 +176,7 @@ plotdta %>%
 
 # missing directorate and dates
 
-dta %>% 
+appx_list$table_mis_dir_dates <- dta %>% 
   group_by(year_creation, month_creation) %>% 
   count(name = "total_ym") %>% 
   inner_join(dta %>% 
@@ -190,9 +191,9 @@ dta %>%
 
 ```
 
-Of the entries with Official suburb missing, ...
 
-```{r}
+```{r missing3}
+# Of the entries with Official suburb missing, ...
 
 plotdta <- dta %>% 
   group_by(directorate) %>% 
@@ -204,16 +205,15 @@ plotdta <- dta %>%
   ungroup() %>% 
   mutate(percentage_missing = n_missing/total_directorate*100)
 
-plotdta %>% 
+appx_list$mis_sub <- plotdta %>% 
   ggplot()+
   geom_point(aes(percentage_missing, reorder(directorate, percentage_missing), size = n_missing))+
   labs(title = "Fig. C: Missing Suburbs per Directorate")
 
 ```
 
-Missingness in specific directorate
 
-```{r}
+```{r missing4}
 
 # Missingness in specific directorate
 
@@ -240,18 +240,18 @@ x1 <- dta_dir %>%
   filter(mis_code_grp == TRUE & mis_cause_code == TRUE) %>% 
   pull(missing_cause)
 
-# tibble(msg = glue::glue("Missing cause for {round(x1/x*100, 2)}% of {select_directorate} entries.")) %>% 
-#   kable(col.names = NULL) %>%
-#   kable_styling(full_width = FALSE, position = "left")
+appx_list$miss_cause <- tibble(msg = glue::glue("Missing cause for {round(x1/x*100, 2)}% of {select_directorate} entries.")) %>%
+  kable(col.names = NULL) %>%
+  kable_styling(position = "left")
 
 
 ```
 
-Missing completion dates for `r select_directorate`.
 
-```{r}
 
-dta_dir %>% 
+```{r missing5}
+# Missing completion dates for `r select_directorate`.
+appx_list$miss_compl_dates <- dta_dir %>% 
   group_by(official_suburb) %>% 
   summarise(n = n(),
             missing_completion_time = 
@@ -265,7 +265,7 @@ dta_dir %>%
 
 
 
-```{r}
+```{r prep}
 
 # prepare ----------------------------------------------------------
 
@@ -285,7 +285,7 @@ dta <- dta %>%
 
 ## Overview of all Directorates
 
-Contextualise
+This section provides broad context of service requests across all COCT Directorates for the time period included in the dataset. The table displays number of service requests per Directorate, as well as the percentage each represents of the total requests for all Directorates. The Urban Mobility Directorate requests make up a small percentage of total requests.
 
 ```{r overview}
 x <- nrow(dta)
@@ -299,11 +299,17 @@ tmp <- dta %>%
 
 x <- which(tmp$Directorate == select_directorate)
 
+
 tmp %>% 
   kable(format = "simple", caption = "Number and percentage of entries per Directorate") %>%
   kable_styling( position = "left") %>% 
   row_spec(row = x, bold = TRUE)
 
+```
+
+The percentages of total requests seem to remain fairly stable per month, in the included time period, with Water and Sanitation and Energy contributing the bulk of requests.
+
+```{r}
 dta %>% 
   group_by(year_creation, month_creation) %>% 
   count(name = "total_ym") %>% 
@@ -316,7 +322,9 @@ dta %>%
   ggplot(aes(month_creation, Percentage_of_total, 
              fill = reorder(directorate, Percentage_of_total)))+
   geom_col()+
-  facet_wrap(~year_creation, scales = "free_x")
+  facet_wrap(~year_creation, scales = "free_x")+
+  labs(fill = "Directorate, ordered from smallest to largest contribution",
+       x = "Month", y = "Percentage of total requests")
 
 tmp <- dta %>% 
   filter(!is.na(official_suburb)) %>% 
@@ -328,6 +336,11 @@ tmp <- dta %>%
                count(name = "total_suburb")) %>% 
   mutate(percentage = total_suburb/total_directorate*100) 
 
+```
+
+Highlighting the top 3 suburbs (largest percentage of total per suburb) for each Directorate, reveals that for most Directorates the total requests are made up of many suburbs, contributing relatively low proportions to the total. For Urban Mobility, for example, the biggest contribution is Milnerton, around 4%, which means that many other suburbs contribute percentages lower than 4%, to make up the total of requests for this Directorate.  The only exception is The Human Settlements Directorate where the top 3 suburbs, together, contribute around 30% of the total.   
+
+```{r}
 map(unique(tmp$directorate),
     ~tmp %>% 
       filter(directorate == .x) %>% 
@@ -344,16 +357,16 @@ map(unique(tmp$directorate),
 
 ## Focused Analysis: Directorate `r select_directorate`
 
-## "In which 3 suburbs should the Urban Mobility directorate concentrate their infrastructure improvement efforts?"
+This section provides insight to inform decisions for infrastructure improvement efforts.  It is important to note that the suburb information was missing for a large percentage of service requests (Table x).   
 
-```{r}
+```{r focused1}
 
 # Number of requests over time, including missing suburbs,
 # including missing completion times
 
-dta_dir %>% 
-  group_by(year_creation, month_creation) %>% 
-  count()
+# dta_dir %>% 
+#   group_by(year_creation, month_creation) %>% 
+#   count()
   
 # % suburb missing
 
@@ -368,6 +381,67 @@ dta_dir %>%
   kable(format = "simple") %>%
   kable_styling( position = "left")
   
+```
+
+The reason for the suburb missingness is not clear from the data.  For the top 5 codes with most service requests, "Pothole&Defect Road Foot Bic Way/Kerbs" and "Paint Markings Lines&Signs" were more likely to be missing, than not (Table x).  
+
+```{r focused2}
+dta_dir %>% 
+  group_by(code) %>% 
+  count() %>% 
+  ungroup() %>% 
+  arrange(desc(n)) %>% 
+  slice(1:5) %>% 
+  select(-n) %>% 
+  inner_join(dta_dir %>% 
+  group_by(mis_sub = is.na(official_suburb), code) %>% 
+  count()) %>% 
+  pivot_wider(names_from = mis_sub, values_from = n) %>% 
+  print(n = Inf)
+
+```
+
+The odds of a suburb entry being missing was more than double for a number of dates, the top 4 of which occur closely together in March 2020 (Table x).  There may therefore be a systematic reason for this missingness, but it is not clear from this dataset.  
+
+```{r focused5}
+
+dta_dir %>% 
+  mutate(across(creation_timestamp, ~as_date(.x))) %>% 
+  group_by(creation_timestamp, mis_sub = is.na(official_suburb)) %>% 
+  count() %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = mis_sub, values_from = n) %>% 
+  rename(missing = `TRUE`, not_missing = `FALSE`) %>% 
+  mutate(odds = round(missing/not_missing, 2)) %>% 
+  arrange(desc(odds)) %>% 
+  slice(1:5) %>% 
+  kable(format = "simple") %>%
+  kable_styling( position = "left")
+
+tmp <- dta_dir %>% 
+  mutate(across(creation_timestamp, ~as_date(.x))) %>% 
+  group_by(creation_timestamp, mis_sub = is.na(official_suburb)) %>% 
+  count() %>% 
+  ungroup() %>% 
+  filter(mis_sub == TRUE) %>% 
+  arrange(desc(n))
+
+x <- sum(tmp$n)
+
+x <- tmp %>% 
+  slice(1:5) %>% 
+  summarise(perc = sum(n)/x*100)
+
+
+```
+
+The top 5 dates for missing suburb entries, represent `r x`% of all the missing suburb entries.  
+
+Service requests with missing suburb entries were excluded for the rest of this analysis, but it should be kept in mind that a systematic cause for the missingness may influence the interpretation of these results.  An important action point may therefore be to attempt to find the cause for the large proportion of missing suburb entries.  
+
+```{r focused4}
+
+# START HERE
 # exclude missing suburb
 
 dta_dir <- dta_dir %>% 
@@ -940,10 +1014,174 @@ sz <- 3
  
 ```
  
+## Appendix
+
+
+```{r}
+
+#### Missingness - include these results in appendix
+# save in appendix list
+appx_list <- list()
+
+n_cutoff <- 5
+
+appx_list$miss_dir <- dta %>% 
+  group_by(official_suburb) %>% 
+  count(name = "total_suburb") %>% 
+  inner_join(dta %>% 
+  filter(is.na(directorate) & !is.na(official_suburb)) %>% 
+  group_by(official_suburb) %>% 
+  count(name = "n_missing")) %>% 
+  mutate(percentage_missing = n_missing/total_suburb*100) %>% 
+  filter(n_missing >= n_cutoff) %>% 
+  arrange(desc(percentage_missing), desc(n_missing)) %>% 
+  ungroup()
+
+# max(tmp$percentage_missing)
+# tmp$official_suburb[tmp$percentage_missing == max(tmp$percentage_missing)]
+
+appx_list$upset_data <- dta %>% 
+  select(directorate, department, branch, section, official_suburb) %>% 
+  mutate(across(everything(), ~as.numeric(is.na(.x)))) %>% 
+  as.data.frame()
+
+
+appx_list$mis_dir_nonmis_sub <- appx_list$upset_data %>% 
+  group_by(directorate, official_suburb) %>% 
+  count() %>% 
+  filter(directorate == 1 & official_suburb == 0) %>% 
+  pull(n)
+
+```
+
+Missingness of specific data entries can be meaningful, e.g. it can point to operational failures if a specific region has more missing data than another.  Therefore it is important to interrogate patterns of missingness in data. We investigated missingness that would make interpretation hard.  Entries for which any of the Directorate, Department, Branch, Section or Official suburb were missing are visualised (Figure A). Entries with missing Directorate were in general also missing for the other categories. Suburbs for which there were at least `r n_cutoff` entries, and for which Directorate was missing, but Official suburb was not(n = `r mis_dir_nonmis_sub`), accounted for at most `r max(tmp1$percentage_missing)` of entries for any suburb and the suburb with the highest percentage of missing entries of this kind, was `r tmp1$official_suburb[tmp1$percentage_missing == max(tmp1$percentage_missing)]`(Figure B). 
+
+```{r}
+
+appx_list$na_interpret_affected <- UpSetR::upset(tmp)
+
+na_interpret_affected
+grid::grid.text("Fig. A",x = 0.65, y=0.95, gp=grid::gpar(fontsize=20))
+
+n_cutoff <- 5
+plotdta <- dta %>% 
+  group_by(official_suburb) %>% 
+  count(name = "total_suburb") %>% 
+  inner_join(dta %>% 
+  filter(is.na(directorate) & !is.na(official_suburb)) %>% 
+  group_by(official_suburb) %>% 
+  count(name = "n_missing")) %>% 
+  mutate(percentage_missing = n_missing/total_suburb*100) %>% 
+  filter(n_missing >= n_cutoff) %>% 
+  arrange(desc(percentage_missing)) %>% 
+  ungroup() 
+
+appx_list$plot_mis_dir_nonmis_sub <- plotdta %>% 
+  slice(1:20) %>% 
+  ggplot()+
+  geom_point(aes(percentage_missing, reorder(official_suburb, percentage_missing), size = n_missing))+
+  labs(title = "Fig. B: Top 20 Suburbs with missing Directorate")
+
+# missing directorate and dates
+
+appx_list$table_mis_dir_dates <- dta %>% 
+  group_by(year_creation, month_creation) %>% 
+  count(name = "total_ym") %>% 
+  inner_join(dta %>% 
+               group_by(year_creation, month_creation, is.na(directorate)) %>% 
+               count(name = "n_missing")) %>%
+  ungroup() %>% 
+  rename(missing_directorate = 4) %>% 
+  filter(missing_directorate == TRUE) %>% 
+  mutate(percentage_missing = n_missing/total_ym*100) %>% 
+  kable(format = "simple") %>%
+   kable_styling(position = "left")
+
+```
+
+Of the entries with Official suburb missing, ...
+
+```{r}
+
+plotdta <- dta %>% 
+  group_by(directorate) %>% 
+  count(name = "total_directorate") %>%
+  inner_join(dta %>% 
+               filter(is.na(official_suburb)) %>% 
+               group_by(directorate) %>% 
+                        count(name = "n_missing")) %>% 
+  ungroup() %>% 
+  mutate(percentage_missing = n_missing/total_directorate*100)
+
+appx_list$mis_sub <- plotdta %>% 
+  ggplot()+
+  geom_point(aes(percentage_missing, reorder(directorate, percentage_missing), size = n_missing))+
+  labs(title = "Fig. C: Missing Suburbs per Directorate")
+
+```
+
+Missingness in specific directorate
+
+```{r}
+
+# Missingness in specific directorate
+
+dta_dir <- dta %>% 
+  filter(directorate == select_directorate)
+
+x <- which(names(dta_dir) %in% c("code_group", "code", "cause_code_group", "cause_code"))
+
+# map(dta_dir[x], ~sort(unique(.x))) 
+# map(dta_dir[x], ~sum(is.na(.x))) 
+# 
+# dta_dir %>%
+#   select(all_of(x)) %>% 
+#   group_by(is.na(.)) %>% 
+#   count()
+
+x <- nrow(dta_dir)
+
+x1 <- dta_dir %>% 
+  group_by(mis_code_grp = is.na(cause_code_group), 
+           mis_cause_code = is.na(cause_code)) %>% 
+  count(name = "missing_cause") %>% 
+  ungroup() %>% 
+  filter(mis_code_grp == TRUE & mis_cause_code == TRUE) %>% 
+  pull(missing_cause)
+
+appx_list$miss_cause <- tibble(msg = glue::glue("Missing cause for {round(x1/x*100, 2)}% of {select_directorate} entries.")) %>%
+  kable(col.names = NULL) %>%
+  kable_styling(position = "left")
+
+
+```
+
+Missing completion dates for `r select_directorate`.
+
+```{r}
+
+appx_list$miss_compl_dates <- dta_dir %>% 
+  group_by(official_suburb) %>% 
+  summarise(n = n(),
+            missing_completion_time = 
+              sum(is.na(completion_timestamp))) %>% 
+  filter(missing_completion_time != 0) %>% 
+  kable(format = "simple") %>%
+  kable_styling(position = "left")
+
+
+```
+
+
+
  
  
  
  
+```{r} 
  
+sessionInfo() 
+ 
+```
  
  
