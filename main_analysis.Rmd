@@ -1280,7 +1280,7 @@ tmp <- dta_dir %>%
 
 x <- sort(tmp$n, decreasing = TRUE)
 x <- x[6] # for top 5
-sz <- 5
+sz <- 7
 tmp %>% 
 mutate(day_of_week = wday(creation_timestamp, label=TRUE),
        label = case_when(n > x ~ 
@@ -1410,7 +1410,7 @@ x <-  dta_dir %>%
  
 x <- x[length(x)] 
 
-sz <- 5
+sz <- 7
  dta_dir %>% 
  mutate(day_of_week = wday(creation_timestamp, label=TRUE)) %>% 
  group_by(day_of_week, official_suburb) %>% 
