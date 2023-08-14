@@ -19,7 +19,7 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.height
 ## Overview
 
 **Note from the author:  This report was compiled to complete the City of Cape Town (COCT) data science challenge.  It is not an official COCT report.**  
-The goal of this analysis is to highlight COCT suburbs that the Urban Mobility Directorate should focus on, for infrastructure improvements, based on service request data for 4 months (December 2019 to March 2020). It also explored intervals between creation and completion of service requests, to assess performance across the city. In future, the identification of performance pain points can be aided by a performance tracking dashboard, for which a visual mock-up is provided.  Finally, some insights relevant to commuter transport, gained from the current data, are provided.    
+The goal of this analysis is to highlight COCT suburbs that the Urban Mobility Directorate should focus on, for infrastructure improvements, based on service request data for 3 months (January 2020 to March 2020). It also explored intervals between creation and completion of service requests, to assess performance across the city. In future, the identification of performance pain points can be aided by a performance tracking dashboard, for which a visual mock-up is provided.  Finally, some insights relevant to commuter transport, gained from the current data, are provided.    
 
 ```{r setup2}
 
@@ -62,9 +62,9 @@ select_directorate <- "URBAN MOBILITY"
 
 ## Methods
 
-The ```sr_hex_truncated.csv``` dataset was provided for this analysis. It originates from service requests across COCT spanning December 2019 to March 2020.  The analysis was performed in the Statistical Programming Language R, using a RMarkdown file to produce this document.  The code is available in a Github repository () and this analysis should be fully reproducible.  The R and package versions used are listed at the end of this document in an appendix.  
-The dataset was explored and new variables created from existing ones, as necessary. Tables and plots were used to communicate useful summaries. Medians, quantiles and non-parametric tests for differences in service request completion times were used because of skew data distribution. 
-Only 1 day of 2019 is represented in the data (31 December) and it was excluded from the analysis.  Missing data entries were explored and details focusing on missingness can be found in the appendix at the end of this document.    Service request data that are hard to interpret because of missing entries in specific variables, were excluded:  rows with missing Directorate for all analyses, rows with missing Official Suburb, for analyses specifically comparing suburbs, and rows with missing service request completion dates for completion time analyses.
+The ```sr_hex_truncated.csv``` dataset was provided for this analysis. It originates from service requests across COCT spanning 31 December 2019 to March 2020.  The analysis was performed in the Statistical Programming Language R, using a RMarkdown file to produce this document.  The code is available in a Github repository (https://github.com/EliznaM/ds_code_challenge.git) and this analysis should be fully reproducible.  The R and package versions used are listed at the end of this document in an appendix.  
+The dataset was explored and new variables created from existing ones, as necessary. Tables and plots were used to communicate useful summaries. Medians, quantiles and non-parametric tests for differences in service request completion times were used because of skew data distribution. For the same reason, log base 10 transformation was sometimes used to aid visualisations. 
+Only 1 day of 2019 is represented in the data (31 December), therefore it was excluded from the analysis.  Missing data entries were explored and details focusing on missingness can be found in the appendix at the end of this document.    Service request data that are hard to interpret because of missing entries in specific variables, were excluded:  rows with missing Directorate for all analyses, rows with missing Official Suburb, for analyses specifically comparing suburbs, and rows with missing service request completion dates for completion time analyses.
 The data contains 4 service request code variables that provide descriptions of the type of request.  Due to severe missingness in two of these, and the differences in granularity in the remaining two, only the ```code``` variable was used to compare and provide insight into the types and frequency of requests.  
 
 ```{r data_check, results='hide'}
@@ -204,8 +204,7 @@ appx_list$table_mis_dir_dates <- dta %>%
   rename(missing_directorate = 4) %>% 
   filter(missing_directorate == TRUE) %>% 
   mutate(percentage_missing = n_missing/total_ym*100) %>% 
-  kable(format = "simple") %>%
-   kable_styling(position = "left")
+  kable(caption = "", format = "simple") 
 
 ```
 
@@ -260,9 +259,7 @@ x1 <- dta_dir %>%
   pull(missing_cause)
 
 appx_list$miss_cause <- tibble(msg = glue::glue("Missing cause for {round(x1/x*100, 2)}% of {select_directorate} entries.")) %>%
-  kable(col.names = NULL) %>%
-  kable_styling(position = "left")
-
+  kable(caption = "", format = "simple") 
 
 ```
 
@@ -276,8 +273,7 @@ appx_list$miss_compl_dates <- dta_dir %>%
             missing_completion_time = 
               sum(is.na(completion_timestamp))) %>% 
   filter(missing_completion_time != 0) %>% 
-  kable(format = "simple") %>%
-  kable_styling(position = "left")
+  kable(caption = "", format = "simple") 
 
 
 ```
@@ -304,7 +300,7 @@ dta <- dta %>%
 
 ## Overview of all Directorates
 
-This section provides broad context of service requests across all COCT Directorates for the time period included in the dataset. The table displays number of service requests per Directorate, as well as the percentage each represents of the total requests for all Directorates. The Urban Mobility Directorate requests make up a small percentage of total requests.
+This section provides broad context of service requests across all COCT Directorates for the time period included in the dataset. Table 1 displays number of service requests per Directorate, as well as the percentage each represents of the total requests for all Directorates. The Urban Mobility Directorate requests make up a small percentage of total requests.
 
 ```{r overview}
 x <- nrow(dta)
@@ -320,13 +316,11 @@ x <- which(tmp$Directorate == select_directorate)
 
 
 tmp %>% 
-  kable(format = "simple", caption = "Number and percentage of entries per Directorate") %>%
-  kable_styling( position = "left") %>% 
-  row_spec(row = x, bold = TRUE)
+  kable(format = "simple", caption = "Number and percentage of entries per Directorate") 
 
 ```
 
-The percentages of total requests seem to remain fairly stable per month, in the included time period, with Water and Sanitation and Energy contributing the bulk of requests.
+The percentages of total requests seem to remain fairly stable per month, in the included time period, with Water and Sanitation and Energy contributing the bulk of requests (Fig. 1).
 
 ```{r}
 dta %>% 
@@ -342,7 +336,8 @@ dta %>%
              fill = reorder(directorate, Percentage_of_total)))+
   geom_col()+
   facet_wrap(~year_creation, scales = "free_x")+
-  labs(fill = "Directorate, ordered from smallest to largest contribution",
+  labs(title = "Figure 1",
+    fill = "Directorate, ordered from smallest to largest contribution",
        x = "Month", y = "Percentage of total requests")
 
 tmp <- dta %>% 
@@ -357,9 +352,9 @@ tmp <- dta %>%
 
 ```
 
-Highlighting the top 3 suburbs (largest percentage of total per suburb) for each Directorate, reveals that for most Directorates the total requests are made up of many suburbs, contributing relatively low proportions to the total. For Urban Mobility, for example, the biggest contribution is Milnerton, around 4%, which means that many other suburbs contribute percentages lower than 4%, to make up the total of requests for this Directorate.  The only exception is The Human Settlements Directorate where the top 3 suburbs, together, contribute around 30% of the total.   
+Highlighting the top 3 suburbs (largest percentage of total per suburb) for each Directorate, reveals that for most Directorates the total requests are made up of many suburbs, contributing relatively low proportions to the total (Fig. 2). For Urban Mobility, for example, the biggest contribution is Milnerton, around 4%, which means that many other suburbs contribute percentages lower than 4%, to make up the total of requests for this Directorate.  The only exception is The Human Settlements Directorate where the top 3 suburbs, together, contribute around 30% of the total.   
 
-```{r fig.height=12, fig.width=24}
+```{r fig.height=8, fig.width=24}
 map(unique(tmp$directorate),
     ~tmp %>% 
       filter(directorate == .x) %>% 
@@ -371,7 +366,8 @@ map(unique(tmp$directorate),
   facet_wrap(~directorate, scales = "free_y",
              nrow = 2)+
   scale_fill_manual(values = c(coct_cols, coct_cols))+
-  labs(x = "Percentage")+
+  labs(title = "Fig. 2",
+    x = "Percentage")+
   theme(legend.position = "none",
         axis.title.y = element_blank())
 
@@ -379,7 +375,7 @@ map(unique(tmp$directorate),
 
 ## Focused Analysis: Directorate `r select_directorate`
 
-This section provides insight to inform decisions for infrastructure improvement efforts.  It is important to note that the suburb information was missing for a large percentage of service requests (Table x).   
+This section provides insight to inform decisions for infrastructure improvement efforts.  It is important to note that the suburb information was missing for a large percentage of service requests (Table 2).   
 
 ```{r focused1}
 
@@ -400,12 +396,11 @@ dta_dir %>%
                group_by(year_creation, month_creation) %>% 
                count(name = "total_missing")) %>% 
   mutate(percentage_missing_suburb = round(total_missing/total_ym*100, 2)) %>% 
-  kable(format = "simple") %>%
-  kable_styling( position = "left")
+  kable(caption = "Missing suburb entries", format = "simple") 
   
 ```
 
-The reason for the suburb missingness is not clear from the data.  For the top 5 codes with most service requests, "Pothole&Defect Road Foot Bic Way/Kerbs" and "Paint Markings Lines&Signs" were more likely to be missing, than not (Table x).  
+The reason for the suburb missingness is not clear from the data.  For the top 5 codes with most service requests, "Pothole&Defect Road Foot Bic Way/Kerbs" and "Paint Markings Lines&Signs" were more likely to be missing, than not (Table 3).  
 
 ```{r focused2}
 dta_dir %>% 
@@ -420,11 +415,11 @@ dta_dir %>%
   count()) %>% 
   pivot_wider(names_from = mis_sub, values_from = n) %>% 
   rename(not_missing = `FALSE`, missing = `TRUE`) %>% 
-  kable(format = "simple")
+  kable(caption = "Missing suburbs, by code", format = "simple")
 
 ```
 
-The odds of a suburb entry being missing was more than double for a number of dates, the top 4 of which occur closely together in March 2020 (Table x).  There may therefore be a systematic reason for this missingness, but it is not clear from this dataset.  
+The odds of a suburb entry being missing was more than double for a number of dates, the top 4 of which occur closely together in March 2020 (Table 4).  There may therefore be a systematic reason for this missingness, but it is not clear from this dataset.  
 
 ```{r focused5}
 
@@ -438,8 +433,7 @@ dta_dir %>%
   mutate(odds = round(missing/not_missing, 2)) %>% 
   arrange(desc(odds)) %>% 
   slice(1:5) %>% 
-  kable(format = "simple") %>%
-  kable_styling( position = "left")
+  kable(caption = "Missing suburbs, by date", format = "simple") 
 
 tmp <- dta_dir %>% 
   mutate(across(creation_timestamp, ~as_date(.x))) %>% 
@@ -453,14 +447,14 @@ x <- sum(tmp$n)
 
 x <- tmp %>% 
   slice(1:5) %>% 
-  summarise(perc = sum(n)/x*100)
+  summarise(perc = round(sum(n)/x*100, 2))
 
 
 ```
 
 The top 5 dates for missing suburb entries, represent `r x`% of all the missing suburb entries.  
 Service requests with missing suburb entries were excluded for the rest of this analysis, but it should be kept in mind that a systematic cause for the missingness may influence the interpretation of these results.  An important action point may therefore be to attempt to find the cause for the large proportion of missing suburb entries.  
-To identify the top suburbs to focus infrastructure improvements on, one can take different approaches.  Simply taking the total number of service requests, would highlight the suburbs in Table x. 
+To identify the top suburbs to focus infrastructure improvements on, one can take different approaches.  Simply taking the total number of service requests, would highlight the suburbs in Table 5. 
 
 ```{r focused4}
 
@@ -478,15 +472,14 @@ tmp <- dta_dir %>%
   slice(1:5) 
 
 tmp %>% 
-  kable(format = "simple") %>% 
-  kable_styling(position = "left")
+  kable(caption = "Total requests", format = "simple") 
 
 top5 <- tmp %>% pull(official_suburb)
 ```
 
-One can also look at consistent numbers of requests over the 3 month period(Fig. x).  Of the top 5 by simple totals, Milnerton, Marconi Beam and Table View are in the top 5 per month, three, two and two times, respectively, while Parklands and Brackenfell Common appear only once. 
+One can also look at consistent numbers of requests over the 3 month period(Fig. 3).  Of the top 5 by simple totals, Milnerton, Marconi Beam and Table View are in the top 5 per month, three, two and two times, respectively, while Parklands and Brackenfell Common appear only once. 
 
-```{r}
+```{r fig.height=10}
 # nr over time, per suburb, missing suburbs excluded now
 
 # 
@@ -531,11 +524,12 @@ tmp %>%
   labs(x = "Percentage")+
   theme(legend.position = "none",
         axis.title.y = element_blank())+
-  scale_fill_manual(values = coct_cols)
+  scale_fill_manual(values = coct_cols)+
+  labs(title = "Fig. 3")
 
 ```
 
-Calculating the percentage of requests each suburb represents, per month, and taking the median of those percentages over the three included months, produces Table x.  
+Calculating the percentage of requests each suburb represents, per month, and taking the median of those percentages over the three included months, produces Table 6.  
 
 ```{r}
 tmp <- dta_dir %>% 
@@ -567,12 +561,11 @@ inner_join(dta_dir %>%
   arrange(desc(med_percentage)) 
 
 tmp %>% 
-  kable(format = "simple") %>%
-  kable_styling( position = "left")
+  kable(caption = "Totals by suburb", format = "simple")
 
 ```
 
-It is plausible that Camps Bay / Bakoven shows up mainly because of holiday traffic, and isn't routinely a problem area.  It can also be seen that Milnerton was responsible for an unusually high percentage in February, and Marconi Beam in March. Exploring request numbers at a more granular level, reveals that 4 particular dates have a disproportionate influence on the high request numbers in Brackenfell Common, Milnerton and Parklands. 
+It is plausible that Camps Bay / Bakoven shows up mainly because of holiday traffic, and isn't routinely a problem area.  It can also be seen that Milnerton was responsible for an unusually high percentage in February, and Marconi Beam in March. Exploring request numbers at a more granular level, reveals that 4 particular dates have a disproportionate influence on the high request numbers in Brackenfell Common, Milnerton and Parklands (Fig. 4). 
 
 ```{r}
 
@@ -587,7 +580,10 @@ tmp %>%
   ggplot(aes(request_date, n, fill = official_suburb))+
   geom_col()+
   facet_wrap(~official_suburb)+
-  scale_fill_manual(values = coct_cols)
+  scale_fill_manual(values = coct_cols)+
+  labs(title = "Figure 4",
+       caption = "Number of service requests is on y-axis and dates 
+       on the x-axis, while each panel represents a different suburb.")
   
 x <- tmp %>% 
   arrange(desc(n)) %>% 
@@ -596,7 +592,7 @@ x <- tmp %>%
   
 ```
 
-A closer look at the codes for those dates, reveals traffic congestion, and traffic light failures as the causes. 
+A closer look at the codes for those dates, reveals traffic congestion, and traffic light failures as the causes (Table 7). 
 
 ```{r}
 
@@ -612,12 +608,11 @@ dta_dir %>%
   ungroup() %>% 
   arrange(desc(n)) %>% 
   filter(n != 1) %>% 
-  kable(format = "simple") %>% 
-  kable_styling(position = "left")
+  kable(caption = "Outier dates", format = "simple") 
   
 ```
 
-If those four dates are excluded in a sensitivity analysis, the top requesting suburbs table ranking changes(Table x).
+If those four dates are excluded in a sensitivity analysis, the top requesting suburbs table ranking changes(Table 8).
 
 ```{r}
 tmp <- dta_dir %>% 
@@ -636,11 +631,11 @@ tmp %>%
   mutate(percentage = round(n/x*100,2)) %>% 
   arrange(desc(percentage)) %>% 
   slice(1:5) %>% 
-  kable(format = "simple")
+  kable(caption = "Suburb totals, outliers excluded", format = "simple")
 
 ```
 
-Taken together, the results highlight Marconi Beam, Table View and Milnerton, as contributors of the highest number of requests for the majority of the months included here. A breakdown of the codes associated with requests for the top 3 suburbs is given in Fig. x.
+Taken together, the results highlight Marconi Beam, Table View and Milnerton, as contributors of the highest number of requests for the majority of the months included here. A breakdown of the codes associated with requests for the top 3 suburbs is given in Fig. 5.
 
 ```{r}
 # explore codes for top 
@@ -654,14 +649,14 @@ dta_dir %>%
   ggplot(aes(n, reorder(code,n), fill = official_suburb))+
   geom_col(position = "dodge")+
   scale_fill_manual(values = coct_cols)+
-  labs(y = "Code")+
+  labs(title = "Figure 5", y = "Code")+
   theme(axis.title.y = element_blank())
 
 ```
 
-It is important to note that the top 3 suburbs were identified from the available data. The current dataset does not provide the opportunity to compare the tendency of the citizens in a particular suburb to report faults or make requests.  Higher numbers of requests in a suburb, may be the sum of a greater tendency to report, and an average amount of infrastructure challenges, so that suburbs with the highest number of actual infrastructure problems, may be underrepresented in the data, due to under-reporting. 
+It is important to note that the top 3 suburbs were identified from the available data. The current dataset does not provide the opportunity to compare the tendency of the citizens in a particular suburb to report faults or make requests.  Higher numbers of requests in a suburb, may be the sum of a greater tendency to report, and the amount of infrastructure challenges, so that suburbs with the highest number of actual infrastructure problems, may be underrepresented in the data, due to under-reporting. 
 
-## Service request completion times
+## Service Request Completion Times
 
 ```{r}
 
@@ -811,7 +806,7 @@ time_dta_list$above_eq_24 <- tmp$tabledta_above
 
 ```
 
-The median and 80th percentile of request completion times for each suburb, as well as for all suburbs combined, were calculated. From the city-wide numbers it can be seen that most requests were completed within hours, while it took almost a week to complete 80% of some requests.  
+The median and 80th percentile of request completion times for each suburb, as well as for all suburbs combined, were calculated (Table 9, med = median; q80 = 80th percentile). From the city-wide numbers it can be seen that most requests were completed within hours, while it took almost a week to complete 80% of some requests.  
 
 ```{r}
 
@@ -826,12 +821,11 @@ time_dta_list$all_times %>%
   filter(official_suburb == sub_txt &
            code == code_txt &
            n >= n_cutoff) %>% 
-  kable(format = "simple", caption = "City-wide, all codes combined", digits = 2) %>%
-  kable_styling( position = "left")
+  kable(format = "simple", caption = "City-wide, all codes combined", digits = 2) 
 
 ```
 
-Because it is clear that the completion time data is skewed, with most tasks taking hours to days, and a minority, taking weeks, it is useful to look at requests taking less than, or more than 24 hours to complete, separately.  
+Because it is clear that the completion time data is skewed, with most tasks taking hours to days, and a minority, taking weeks, it is useful to look at requests taking less than, or more than 24 hours to complete, separately (Table 10 and 11, med = median; q80 = 80th percentile).  
 
 ```{r}
 x <- time_dta_list$all_times %>% 
@@ -853,8 +847,7 @@ time_dta_list$below_24 %>%
            code == code_txt &
            n >= n_cutoff) %>% 
   kable(format = "simple", caption = "City-wide, all codes combined, only requests completed in less than 24 hours",
-        digits = 2) %>%
-  kable_styling( position = "left")
+        digits = 2) 
 
 # > 24 hrs
 
@@ -867,12 +860,11 @@ time_dta_list$above_eq_24 %>%
   rename(med_time_days = med_time_hours, 
          q80_time_days = q80_time_hours) %>% 
   kable(format = "simple", caption = "City-wide, all codes combined, only requests completed in 24 hours or more",
-        digits = 2) %>%
-  kable_styling( position = "left")
+        digits = 2) 
 
 ```
 
-Suburbs with the top 5 longest median completion times are shown, as well as suburbs with the top 5 shortest median completion times. 
+Suburbs with the top 5 longest median completion times are shown, as well as suburbs with the top 5 shortest median completion times (Table 12 and 13, med = median; q80 = 80th percentile). 
 
 ```{r}
 # split by 24 hours
@@ -889,8 +881,7 @@ time_dta_list$all_times %>%
          q80_time_days = q80_time_hours) %>% 
   slice(1:5) %>% 
   kable(format = "simple", caption = "Top 5 suburbs with longest median completion times, all codes combined",
-        digits = 2) %>%
-  kable_styling( position = "left")
+        digits = 2) 
 
 time_dta_list$all_times %>% 
   filter(official_suburb != sub_txt &
@@ -898,12 +889,10 @@ time_dta_list$all_times %>%
            n >= n_cutoff) %>% 
   arrange(med_time_hours) %>% 
   slice(1:5) %>% 
-  kable(format = "simple", caption = "Top 5 suburbs with shortest median completion times, all codes combined") %>%
-  kable_styling(position = "left")
-
+  kable(format = "simple", caption = "Top 5 suburbs with shortest median completion times, all codes combined") 
 ```
 
-Looking at combined completion times for all codes, probably masks important information, as some due to the nature of some codes, they are more likely to take longer than others.  Exploring any codes for which there were at least 5 service requests, reveals that different types of codes differ in their typical duration times (Fig. x).  The x-axis of the plot is on a log base 10 scale, to aid in visualisation.  
+Looking at combined completion times for all codes, probably masks important information, as due to the nature of some codes, they are more likely to take longer than others.  Exploring any codes for which there were at least 5 service requests, reveals that different types of codes differ in their typical duration times (Fig. 6).  The x-axis of the plot is on a log base 10 scale, to aid in visualisation.  
 
 ```{r}
 
@@ -921,11 +910,15 @@ time_dta_list$all_times %>%
    geom_line(colour = "grey70")+
   geom_point(size = 3)+
    scale_colour_manual(values = coct_cols)+
-  theme(axis.title.y = element_blank())
+  theme(axis.title.y = element_blank())+
+  labs(title = "Figure 6",
+       caption = "X-axis shows log base 10 transformed hours,
+       so that 1 denotes 10 hours, 2, 100 hours, etc. Median
+       time is shown in pink and 80% percentile in green.")
 
 ```
 
-Breaking down the codes into the suburbs they originated from, and including only codes with 5 or more requests in a suburb, displays the variation present in the completion times, across suburbs.  Fig. x is split into completion times below or above 24 hours. The variation is probably enhanced due to the relatively small size of the dataset, and exploring these times over more months, will give greater insight. 
+Breaking down the codes into the suburbs they originated from, and including only codes with 5 or more requests in a suburb, displays the variation present in the completion times, across suburbs.  Fig. 7 is split into completion times below or above 24 hours.  The coloured bars denote quantiles in the data, so that the innermost yellow section contains 50% of the data, the next colour stretches to contain 80% data, and the outer edges represent 95% of the data. The variation is probably enhanced due to the relatively small size of the dataset, and exploring these times over more months, will give greater insight. 
 
 ```{r}
 # split by codes
@@ -960,7 +953,8 @@ p1 <- map(x,
   bind_rows() %>% 
   ggplot(aes(time_hours, official_suburb))+
     ggdist::stat_interval()+
-  facet_wrap(~code, scales = "free_y", ncol = 1)
+  facet_wrap(~code, scales = "free_y", ncol = 1)+
+  labs(title = "Figure 7")
 
 
 p2 <- map(x,
@@ -996,7 +990,7 @@ ggpubr::ggarrange(p1, p2, ncol = 1, nrow = 2,
 # 
 ```
 
-Focusing on the three suburbs identified before as focus-areas, it is shown that the median and 80th percentile for completion times, are shorter for all three suburb, compared to all suburbs combined.   
+Focusing on the three suburbs identified before as focus-areas, it is shown that the median and 80th percentile for completion times, are shorter for all three suburbs, compared to all suburbs combined (Table 14, med = median, q80 = 80th percentile).   
 
 ```{r}
 
@@ -1011,13 +1005,13 @@ time_dta_list$all_times %>%
   filter(official_suburb %in% sub_txt &
            code == code_txt)) %>% 
   arrange(desc(med_time_hours)) %>% 
-  kable(format = "simple")
+  kable(caption = "Request completion times", format = "simple")
   
 ```
 
-Plotting the median and 80th percentile completion times for each code that represented 5 or more requests, shows that a limited set of codes make up the majority of requests for these suburbs, and that completion time varies according to code. 
+Plotting the median and 80th percentile completion times for each code that represented 5 or more requests, shows that a limited set of codes make up the majority of requests for these suburbs, and that completion time varies according to code (Fig. 8). 
 
-```{r}
+```{r fig.height=10}
 time_dta_list$all_times %>% 
   filter(official_suburb %in% sub_txt &
            code != code_txt &
@@ -1030,19 +1024,15 @@ time_dta_list$all_times %>%
   geom_point(size = 3)+
   facet_wrap(~official_suburb)+
    scale_colour_manual(values = coct_cols)+
-  theme(axis.title.y = element_blank())
+  theme(axis.title.y = element_blank())+
+  labs(title = "Figure 8", caption = "X-axis shows log base 10 transformed hours,
+       so that 1 denotes 10 hours, 2, 100 hours, etc. Median
+       time is shown in pink and 80% percentile in green.")
 
 
 ```
 
-
-
-## 3. "Is there any significant differences in the median and 80th percentile completion times between the City as a whole and the 3 suburbs identified in(1)?".  Please elaborate on the similarities or differences.
-
-To determine whether the differences in median and 80th percentile completion times for the selected suburbs are different from the completion times of all other suburbs combined, each completion time of a suburb, was rated as either lower or, equal to or higher, than the median completion time for all other suburbs. The proportion of completion times lower than the median of all others combined, was then compared to the proportion of the completion times of all other suburbs combined, which was lower than the median (as this would work out to roughly 0.5, by definition, the test is essentially a comparison of the suburb of interest proportion, to 0.5). The proportions were compared with a statistical test for equality of proportions, and a p-value < 0.05, denotes that the probability that a suburb would have a proportion so different from all other suburbs, by random chance alone (i.e. no underlying reason for the difference), is less than 5%.  The test was significant for bith Marconi Beam and Milnerton, but not for Table View (Table x). 
-
-
-
+To determine whether the differences in median and 80th percentile completion times for the selected suburbs are different from the completion times of all other suburbs combined, each completion time of a suburb, was rated as either lower or, equal to or higher, than the median completion time for all other suburbs. The proportion of completion times lower than the overall median, was then compared to the proportion of the completion times of all other suburbs combined, which was lower than the median (as this would work out to roughly 0.5, by definition, the test is essentially a comparison of the suburb of interest proportion, to 0.5). The proportions were compared with a statistical test for equality of proportions, and a p-value < 0.05, denotes that the probability that a suburb would have a proportion so different from all other suburbs, by random chance alone (i.e. no underlying reason for the difference), is less than 5%.  The test was significant for both Marconi Beam and Milnerton, but not for Table View (Table 15). 
 
 ```{r}
 
@@ -1091,12 +1081,17 @@ prop_test_list[[i]] <- tibble(suburb = select_suburbs[i],
 prop_test_list %>% 
   bind_rows() %>% 
   arrange(p_value) %>% 
-  kable(format = "simple")
+  kable(caption = "Difference test p-values", format = "simple")
 
 ```
 
-## 3. Provide a visual mock of a dashboard for the purpose of monitoring progress in applying the insights developed in (1) & (2). It should focus the user on performance pain points. Add a note for each visual element, explaining how it helps fulfill this overall function. Please also provide a brief explanation as to how the data provided would be used to realise what is contained in your mock.
+## Dashboard Mock-up
 
+A dashboard can help to identify performance pain points.  Below is a rough mock-up of plots that could be displayed to give a single-page overview. The mock-up is based on a scenario, where data for the preceding 3 completed months are available to display in the dashboard. Each section (A to C) is described.  
+Section A highlights suburbs with high numbers of service requests.  Totals over three months are shown in a barplot, and change over time in a line plot. Furthermore the top 5 contributing codes to these numbers, are shown for every suburb, with contributing percentages.  The data used for this section will need to be prepared carefully to identify exceptionally high  numbers (outliers) contributed by only a few isolated dates.  These dates can then be removed, or imputed with the median of all other dates, to prevent such outliers from an exaggerated influence on the overall message.  
+Section B focuses on pending service requests from the preceding three months.  The barplots are produced by filtering for all service requests with missing completion times, and calculating the time from request creation, to the date on which the dashboard is accessed, giving the pending time. The codes and suburbs contributing to pending requests are shown separately.   
+Section C reveals service request completion times.  Missing completion times will be filtered out, therefore it is important to represent these in Section B, otherwise Section C will hide problems with pending tasks. As it has been shown that different codes and suburbs vary in completion times, a breakdown by code and suburb is given, highlighting the top 5 suburbs with longest median completion times. 
+As missing data can influence interpretation, variables or suburbs with large proportions of missing data can potentially also be flagged on this dashboard, so that data quality can continuously be improved.  
 
 ```{r}
 
@@ -1263,20 +1258,13 @@ ggpubr::ggarrange(D, E, ncol = 1)
 
 theme_set(theme_doc)
 
-knit_exit()
+
 
 ```
 
+## Other Relevant Insights 
 
-
-
-
-
-
-
-## Other relevant insights 
-
-Traffic congestion can be explored by plotting request numbers associated with this code, over time, and looking for patterns in day of week, or highlighting particularly bad days (Fig. x). Several days in February 2020 stand out. 
+Traffic congestion can be explored by plotting request numbers associated with this code, over time, and looking for patterns in day of week, or highlighting particularly bad days (Fig. 9). Several days in February 2020 stand out. 
  
 ```{r}
 # traffic congestion over time
@@ -1307,11 +1295,14 @@ mutate(day_of_week = wday(creation_timestamp, label=TRUE),
  geom_point(size = 3)+
    geom_text()+
   scale_color_manual(values = coct_cols)+
-  theme(legend.title = element_blank())
+  theme(legend.title = element_blank())+
+  labs(title = "Figure 9",
+       caption = "X-axis shows dates. Dots are coloured by week day (pink) or weekend day (green).
+       Outlier points are labelled with dates.")
 
 ```
 
-The suburbs contributing to the top 5 days with highest number of traffic congestion requests, show that a small number of suburbs make the largest contribution.
+The suburbs contributing to the top 5 days with highest number of traffic congestion requests, show that a small number of suburbs make the largest contribution (Fig. 10).
 
 ```{r fig.height = 16}
 dta_dir %>% 
@@ -1330,7 +1321,9 @@ dta_dir %>%
   geom_col()+
   scale_fill_manual(values = coct_cols)+
   labs(fill = "Top 5 Dates")+
-  theme(axis.title.y = element_blank())
+  theme(axis.title.y = element_blank())+
+  labs(title = "Figure 10",
+       caption = "Each bar show number of requests, with different colours for each date's contribution.")
 
 
 # get outlier date
@@ -1346,7 +1339,7 @@ tmp <- dta_dir %>%
 
 ```
 
-A clear pattern for number of requests and day of the week, is seen for congested traffic requests, and to some degree for Traffic lights out. Wednesdays contributed the most traffic congestion requests, but when removing the outlier for Parklands on `r tmp`,there seems to be a mid-week plateau, tapering down to Sunday and Saturday on either side, as expected. 
+A clear pattern for number of requests and day of the week, is seen for congested traffic requests, and to some degree for Traffic lights out. Wednesdays contributed the most traffic congestion requests, but when removing the outlier for Parklands on `r tmp`,there seems to be a mid-week plateau, tapering down to Sunday and Saturday on either side, as expected (Fig. 11). 
 
 ```{r}
 
@@ -1372,7 +1365,7 @@ p1 <- dta_dir %>%
  geom_point(size = 3)+
  geom_line()+
    scale_colour_manual(values = coct_cols)+
-  labs(title = "All values")
+  labs(title = "Figure 11, All values")
    
 p2 <- dta_dir %>% 
   mutate(date = as_date(creation_timestamp)) %>% 
@@ -1385,7 +1378,8 @@ p2 <- dta_dir %>%
  geom_point(size = 3)+
  geom_line()+
    scale_colour_manual(values = coct_cols)+
-  labs(title = "Parklands outlier removed")
+  labs(title = "Parklands outlier removed",
+       caption = "Each coloured line is a separate code.")
 
 ggpubr::ggarrange(p1, p2, common.legend = TRUE)
 
@@ -1400,7 +1394,7 @@ ggpubr::ggarrange(p1, p2, common.legend = TRUE)
  
 ```
 
-The pattern is less pronounced when looking at individual suburbs, but the three suburbs identified previously for intervention, feature prominently in the highest numbers of requests(Fig x).
+The pattern is less pronounced when looking at individual suburbs, but the three suburbs identified previously for intervention, feature prominently in the highest numbers of requests(Fig 12).
 
 ```{r}
  # suburbs and days of week
@@ -1424,17 +1418,19 @@ sz <- 3
    mutate(label = case_when(n >= x ~ official_suburb,
                           TRUE ~ "")) %>%
    ggplot(aes(day_of_week, n, label = label))+
-   geom_jitter(alpha = 0.6, width = 0.1)+
+   geom_jitter(alpha = 0.6, width = 0.1, colour = coct_cols[1])+
    ggrepel::geom_text_repel(alpha = 0.5, size = sz,
                             max.overlaps = 50,
-                            force = 0.1)
+                            force = 0.1)+
+   labs(title = "Figure 12",
+        caption = "Each dot represents a suburb, only ones with
+        high numbers are labelled.")
  
 ```
  
 ## Conclusion
 
-
-
+Three suburbs for the Urban Mobility Directorate to potentially focus infrastructure improvement efforts on, were highlighted, although it must be noted that the current data does not allow for exploration of under-reporting in some suburbs.  Service requests were typically completed within hours, but some codes were completed in longer times, so that it took almost a week to complete 80% of requests.  Exploring traffic congestion related requests, revealed that the middle 3 days of the week are worse than Mondays and Fridays, and suburbs on the West Coast are particularly challenged. 
 
 ## Appendix
 
@@ -1443,36 +1439,12 @@ sz <- 3
 
 #### Missingness - include these results in appendix
 # save in appendix list
-appx_list <- list()
+
 
 n_cutoff <- 5
 
-appx_list$miss_dir <- dta %>% 
-  group_by(official_suburb) %>% 
-  count(name = "total_suburb") %>% 
-  inner_join(dta %>% 
-  filter(is.na(directorate) & !is.na(official_suburb)) %>% 
-  group_by(official_suburb) %>% 
-  count(name = "n_missing")) %>% 
-  mutate(percentage_missing = n_missing/total_suburb*100) %>% 
-  filter(n_missing >= n_cutoff) %>% 
-  arrange(desc(percentage_missing), desc(n_missing)) %>% 
-  ungroup()
-
-# max(tmp$percentage_missing)
-# tmp$official_suburb[tmp$percentage_missing == max(tmp$percentage_missing)]
-
-appx_list$upset_data <- dta %>% 
-  select(directorate, department, branch, section, official_suburb) %>% 
-  mutate(across(everything(), ~as.numeric(is.na(.x)))) %>% 
-  as.data.frame()
-
-
-appx_list$mis_dir_nonmis_sub <- appx_list$upset_data %>% 
-  group_by(directorate, official_suburb) %>% 
-  count() %>% 
-  filter(directorate == 1 & official_suburb == 0) %>% 
-  pull(n)
+tmp1 <- appx_list$miss_dir 
+mis_dir_nonmis_sub <- appx_list$mis_dir_nonmis_sub 
 
 ```
 
@@ -1480,66 +1452,23 @@ Missingness of specific data entries can be meaningful, e.g. it can point to ope
 
 ```{r}
 
-appx_list$na_interpret_affected <- UpSetR::upset(tmp)
-
-na_interpret_affected
+appx_list$na_interpret_affected
 grid::grid.text("Fig. A",x = 0.65, y=0.95, gp=grid::gpar(fontsize=20))
 
 n_cutoff <- 5
-plotdta <- dta %>% 
-  group_by(official_suburb) %>% 
-  count(name = "total_suburb") %>% 
-  inner_join(dta %>% 
-  filter(is.na(directorate) & !is.na(official_suburb)) %>% 
-  group_by(official_suburb) %>% 
-  count(name = "n_missing")) %>% 
-  mutate(percentage_missing = n_missing/total_suburb*100) %>% 
-  filter(n_missing >= n_cutoff) %>% 
-  arrange(desc(percentage_missing)) %>% 
-  ungroup() 
 
-appx_list$plot_mis_dir_nonmis_sub <- plotdta %>% 
-  slice(1:20) %>% 
-  ggplot()+
-  geom_point(aes(percentage_missing, reorder(official_suburb, percentage_missing), size = n_missing))+
-  labs(title = "Fig. B: Top 20 Suburbs with missing Directorate")
-
+appx_list$plot_mis_dir_nonmis_sub 
 # missing directorate and dates
 
-appx_list$table_mis_dir_dates <- dta %>% 
-  group_by(year_creation, month_creation) %>% 
-  count(name = "total_ym") %>% 
-  inner_join(dta %>% 
-               group_by(year_creation, month_creation, is.na(directorate)) %>% 
-               count(name = "n_missing")) %>%
-  ungroup() %>% 
-  rename(missing_directorate = 4) %>% 
-  filter(missing_directorate == TRUE) %>% 
-  mutate(percentage_missing = n_missing/total_ym*100) %>% 
-  kable(format = "simple") %>%
-   kable_styling(position = "left")
+appx_list$table_mis_dir_dates 
 
 ```
 
-Of the entries with Official suburb missing, ...
+Most Directorates had relatively large percentages of entries with Official Suburb missing. 
 
 ```{r}
 
-plotdta <- dta %>% 
-  group_by(directorate) %>% 
-  count(name = "total_directorate") %>%
-  inner_join(dta %>% 
-               filter(is.na(official_suburb)) %>% 
-               group_by(directorate) %>% 
-                        count(name = "n_missing")) %>% 
-  ungroup() %>% 
-  mutate(percentage_missing = n_missing/total_directorate*100)
-
-appx_list$mis_sub <- plotdta %>% 
-  ggplot()+
-  geom_point(aes(percentage_missing, reorder(directorate, percentage_missing), size = n_missing))+
-  labs(title = "Fig. C: Missing Suburbs per Directorate")
-
+appx_list$mis_sub 
 ```
 
 Missingness in specific directorate
@@ -1548,33 +1477,7 @@ Missingness in specific directorate
 
 # Missingness in specific directorate
 
-dta_dir <- dta %>% 
-  filter(directorate == select_directorate)
-
-x <- which(names(dta_dir) %in% c("code_group", "code", "cause_code_group", "cause_code"))
-
-# map(dta_dir[x], ~sort(unique(.x))) 
-# map(dta_dir[x], ~sum(is.na(.x))) 
-# 
-# dta_dir %>%
-#   select(all_of(x)) %>% 
-#   group_by(is.na(.)) %>% 
-#   count()
-
-x <- nrow(dta_dir)
-
-x1 <- dta_dir %>% 
-  group_by(mis_code_grp = is.na(cause_code_group), 
-           mis_cause_code = is.na(cause_code)) %>% 
-  count(name = "missing_cause") %>% 
-  ungroup() %>% 
-  filter(mis_code_grp == TRUE & mis_cause_code == TRUE) %>% 
-  pull(missing_cause)
-
-appx_list$miss_cause <- tibble(msg = glue::glue("Missing cause for {round(x1/x*100, 2)}% of {select_directorate} entries.")) %>%
-  kable(col.names = NULL) %>%
-  kable_styling(position = "left")
-
+appx_list$miss_cause 
 
 ```
 
@@ -1582,23 +1485,11 @@ Missing completion dates for `r select_directorate`.
 
 ```{r}
 
-appx_list$miss_compl_dates <- dta_dir %>% 
-  group_by(official_suburb) %>% 
-  summarise(n = n(),
-            missing_completion_time = 
-              sum(is.na(completion_timestamp))) %>% 
-  filter(missing_completion_time != 0) %>% 
-  kable(format = "simple") %>%
-  kable_styling(position = "left")
-
+appx_list$miss_compl_dates
 
 ```
 
-
-
- 
- 
- 
+Session info
  
 ```{r} 
  
